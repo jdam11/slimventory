@@ -1,7 +1,6 @@
 services:
   db:
     image: mysql:8.0
-    container_name: slim-db
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
@@ -25,11 +24,35 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     image: slim-backend
-    container_name: slim-backend
     restart: unless-stopped
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     environment:
       DB_HOST: db
+      DB_PORT: ${DB_PORT:-3306}
+      DB_USER: ${DB_USER:-slim_user}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME:-slim_db}
+      SECRET_KEY: ${SECRET_KEY}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-60}
+      REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-7}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      READONLY_USERNAME: ${READONLY_USERNAME:-viewer}
+      READONLY_PASSWORD: ${READONLY_PASSWORD}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}
+      SECURE_COOKIES: ${SECURE_COOKIES:-false}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      BACKUP_DIR: ${BACKUP_DIR:-/backups}
+      DEFAULT_APP_REPO_URL: ${DEFAULT_APP_REPO_URL:-https://github.com/tailscale-dev/ScaleTail}
+      DEFAULT_APP_REPO_NAME: ${DEFAULT_APP_REPO_NAME:-ScaleTail}
+      MONITORING_PROMETHEUS_URL: ${MONITORING_PROMETHEUS_URL:-}
+      MONITORING_LOKI_URL: ${MONITORING_LOKI_URL:-}
+      MONITORING_TIMEOUT_SECONDS: ${MONITORING_TIMEOUT_SECONDS:-10}
+      PROXMOX_ENCRYPTION_KEY: ${PROXMOX_ENCRYPTION_KEY:-}
+      PROXMOX_SYNC_TIMEOUT_SECONDS: ${PROXMOX_SYNC_TIMEOUT_SECONDS:-20}
       ANSIBLE_RUNNER_URL: http://ansible-runner:8001
       REPOS_PATH: /repos
     depends_on:
@@ -55,7 +78,6 @@ services:
       context: ./ansible-runner
       dockerfile: Dockerfile
     image: slim-ansible-runner
-    container_name: slim-ansible-runner
     restart: unless-stopped
     environment:
       ANSIBLE_HOST_KEY_CHECKING: "True"
@@ -76,7 +98,6 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     image: slim-frontend
-    container_name: slim-frontend
     restart: unless-stopped
     ports:
       - "3000:8080"

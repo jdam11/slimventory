@@ -352,6 +352,12 @@ All backup endpoints require admin access.
 
 ## Security
 
+### AI and deployment disclaimer
+
+AI tools were used to help build the frontend and assist with development and debugging. All code was reviewed by the project maintainer before release.
+
+Although safety precautions have been taken, SLIM is intended for internal infrastructure use. Do not expose it directly to the public internet. Run it on a trusted internal network and place it behind HTTPS/SSL when accessed through a reverse proxy.
+
 ### Headers
 
 All API responses include:
