@@ -1,0 +1,86 @@
+name: Publish Docker Images
+
+on:
+  push:
+    tags:
+      - 'v[0-9]*.[0-9]*.[0-9]*'
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    name: CI
+    if: ${{ github.server_url == 'https://github.com' }}
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
+  publish:
+    name: Build and push ${{ matrix.service }}
+    if: ${{ github.server_url == 'https://github.com' }}
+    needs: ci
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: backend
+            context: ./backend
+            image: jdam11/slim-backend
+            ghcr_image: ghcr.io/jdam11/slim-backend
+          - service: frontend
+            context: ./frontend
+            image: jdam11/slim-frontend
+            ghcr_image: ghcr.io/jdam11/slim-frontend
+          - service: ansible-runner
+            context: ./ansible-runner
+            image: jdam11/slim-ansible-runner
+            ghcr_image: ghcr.io/jdam11/slim-ansible-runner
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          tags: |
+            ${{ matrix.image }}:latest
+            ${{ matrix.image }}:${{ steps.version.outputs.version }}
+            ${{ matrix.ghcr_image }}:latest
+            ${{ matrix.ghcr_image }}:${{ steps.version.outputs.version }}
+          cache-from: type=registry,ref=${{ matrix.image }}:buildcache
+          cache-to: |
+            type=registry,ref=${{ matrix.image }}:buildcache,mode=max
+            type=registry,ref=${{ matrix.ghcr_image }}:buildcache,mode=max

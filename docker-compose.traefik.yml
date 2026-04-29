@@ -1,0 +1,36 @@
+services:
+  traefik:
+    image: traefik:v3.3
+    container_name: slim-traefik
+    restart: unless-stopped
+    depends_on:
+      - frontend
+    command:
+      - --api.dashboard=false
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge=true
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_letsencrypt:/letsencrypt
+
+  frontend:
+    ports: !override []
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.slimventory.rule=Host(`${PUBLIC_HOST}`)
+      - traefik.http.routers.slimventory.entrypoints=websecure
+      - traefik.http.routers.slimventory.tls=true
+      - traefik.http.routers.slimventory.tls.certresolver=letsencrypt
+      - traefik.http.services.slimventory.loadbalancer.server.port=8080
+
+volumes:
+  traefik_letsencrypt:

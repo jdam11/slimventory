@@ -1,0 +1,70 @@
+# ── Environment & secrets ────────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+
+# ── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.hypothesis/
+.coverage
+coverage.xml
+htmlcov/
+*.egg-info/
+*.tsbuildinfo
+
+# ── Backend virtualenv & tooling ─────────────────────────────────────────────
+.venv/
+venv/
+backend/.venv/
+
+# ── Frontend ─────────────────────────────────────────────────────────────────
+frontend/node_modules/
+frontend/dist/
+
+# ── Build artifacts ──────────────────────────────────────────────────────────
+dist/
+build/
+
+# ── Database files (test) ────────────────────────────────────────────────────
+*.db
+*.sqlite3
+
+# ── Backups ──────────────────────────────────────────────────────────────────
+backups/
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+
+# ── Temp files ───────────────────────────────────────────────────────────────
+/tmp/
+tmp/
+
+# ── Editor & OS ──────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ── Root-level asset duplicates (originals live in frontend/public/) ──────────
+/icon.svg
+/logo.svg
+
+# ── AI code agent workspaces ─────────────────────────────────────────────────
+CLAUDE.md
+claude.md
+AGENTS.md
+agents.md
+.claude/
+.agents/
+.cursor/
+.copilot/

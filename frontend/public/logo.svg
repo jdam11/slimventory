@@ -1,0 +1,68 @@
+<svg width="720" height="220" viewBox="0 0 720 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Core glow -->
+    <radialGradient id="coreGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(110 110) rotate(90) scale(70)">
+      <stop offset="0" stop-color="#C084FC" stop-opacity="0.9"></stop>
+      <stop offset="1" stop-color="#A855F7" stop-opacity="0.05"></stop>
+    </radialGradient>
+
+    <!-- Glow filter -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="blur"></feGaussianBlur>
+      <feMerge>
+        <feMergeNode in="blur"></feMergeNode>
+        <feMergeNode in="SourceGraphic"></feMergeNode>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- ===== ICON ===== -->
+  <g transform="translate(20, 0)">
+    <rect width="200" height="200" rx="36" fill="#08070F"></rect>
+
+    <!-- Aura -->
+    <circle cx="100" cy="100" r="64" fill="url(#coreGlow)"></circle>
+
+    <!-- Connections -->
+    <g stroke="#2D1F4A" stroke-width="3">
+      <line x1="100" y1="30" x2="100" y2="100"></line>
+      <line x1="100" y1="170" x2="100" y2="100"></line>
+      <line x1="30" y1="100" x2="100" y2="100"></line>
+      <line x1="170" y1="100" x2="100" y2="100"></line>
+      <line x1="50" y1="50" x2="100" y2="100"></line>
+      <line x1="150" y1="50" x2="100" y2="100"></line>
+      <line x1="50" y1="150" x2="100" y2="100"></line>
+      <line x1="150" y1="150" x2="100" y2="100"></line>
+    </g>
+
+    <!-- Center -->
+    <g filter="url(#glow)">
+      <circle cx="100" cy="100" r="14" fill="#A855F7"></circle>
+    </g>
+
+    <!-- Outer nodes -->
+    <g filter="url(#glow)">
+      <circle cx="100" cy="30" r="6" fill="#00E5FF"></circle>
+      <circle cx="100" cy="170" r="6" fill="#7B8CFF"></circle>
+      <circle cx="30" cy="100" r="6" fill="#00F5A0"></circle>
+      <circle cx="170" cy="100" r="6" fill="#FFB627"></circle>
+      <circle cx="50" cy="50" r="6" fill="#FF79C6"></circle>
+      <circle cx="150" cy="50" r="6" fill="#00E5FF"></circle>
+      <circle cx="50" cy="150" r="6" fill="#FF3864"></circle>
+      <circle cx="150" cy="150" r="6" fill="#00F5A0"></circle>
+    </g>
+  </g>
+
+  <!-- ===== WORDMARK ===== -->
+  <g transform="translate(260, 70)">
+    <!-- SLIM text -->
+    <text x="0" y="60" font-family="Inter, Sora, system-ui, sans-serif" font-size="72" font-weight="600" fill="#F0E6FF" letter-spacing="0.05em">
+      SLIM
+    </text>
+
+    <!-- Tagline -->
+    <text x="2" y="100" font-family="Inter, system-ui, sans-serif" font-size="20" fill="#B09DCC" letter-spacing="0.12em">
+      SIMPLE LAB INVENTORY MANAGER
+    </text>
+  </g>
+</svg>

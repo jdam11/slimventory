@@ -1,0 +1,24 @@
+services:
+  caddy:
+    image: caddy:2.10
+    container_name: slim-caddy
+    restart: unless-stopped
+    depends_on:
+      - frontend
+    environment:
+      PUBLIC_HOST: ${PUBLIC_HOST}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+  frontend:
+    ports: !override []
+
+volumes:
+  caddy_data:
+  caddy_config:

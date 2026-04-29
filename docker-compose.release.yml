@@ -1,0 +1,86 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: slim-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME:-slim_db}
+      MYSQL_USER: ${DB_USER:-slim_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./db/02_grants.sh:/docker-entrypoint-initdb.d/02_grants.sh:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root",
+             "--password=${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  backend:
+    image: jdam11/slim-backend:latest
+    container_name: slim-backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_HOST: db
+      ANSIBLE_RUNNER_URL: http://ansible-runner:8001
+      REPOS_PATH: /repos
+    depends_on:
+      db:
+        condition: service_healthy
+      ansible-runner:
+        condition: service_healthy
+    volumes:
+      - ./backups:/backups
+      - repos_data:/repos
+      - known_hosts_data:/known_hosts
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  ansible-runner:
+    image: jdam11/slim-ansible-runner:latest
+    container_name: slim-ansible-runner
+    restart: unless-stopped
+    environment:
+      ANSIBLE_HOST_KEY_CHECKING: "True"
+    volumes:
+      - repos_data:/repos
+      - known_hosts_data:/known_hosts
+    expose:
+      - "8001"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  frontend:
+    image: jdam11/slim-frontend:latest
+    container_name: slim-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:8080"
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8080/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  mysql_data:
+  repos_data:
+  known_hosts_data:

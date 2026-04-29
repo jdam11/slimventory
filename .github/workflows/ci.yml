@@ -1,0 +1,144 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend
+    if: ${{ github.server_url == 'https://github.com' }}
+    runs-on: ubuntu-latest
+    container:
+      image: python:3.13.3-slim
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Install uv
+        working-directory: backend
+        run: pip install uv
+
+      - name: Sync backend dependencies
+        working-directory: backend
+        run: uv sync --frozen --extra dev --extra test
+
+      - name: Run backend lint
+        working-directory: backend
+        run: uv run ruff check app/
+
+      - name: Run backend tests
+        working-directory: backend
+        run: uv run python -m pytest tests/ -v
+
+      - name: Compile backend sources
+        working-directory: backend
+        run: uv run python -m compileall app tests
+
+  frontend:
+    name: Frontend
+    if: ${{ github.server_url == 'https://github.com' }}
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+  secrets:
+    name: Secret Scan
+    if: ${{ github.server_url == 'https://github.com' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0
+
+      - name: Scan tracked files for secrets
+        run: ./scripts/run_gitleaks.sh dir .
+
+  image-scan:
+    name: Repository Security Scan
+    if: ${{ github.server_url == 'https://github.com' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Install Trivy
+        run: |
+          curl -fsSLo /tmp/trivy.tar.gz \
+            https://github.com/aquasecurity/trivy/releases/download/v0.69.3/trivy_0.69.3_Linux-64bit.tar.gz
+          printf '%s  %s\n' \
+            '1816b632dfe529869c740c0913e36bd1629cb7688bd5634f4a858c1d57c88b75' \
+            '/tmp/trivy.tar.gz' | sha256sum -c -
+          tar -xzf /tmp/trivy.tar.gz -C /tmp trivy
+          install -m 0755 /tmp/trivy /usr/local/bin/trivy
+
+      - name: Install Grype
+        run: |
+          curl -fsSLo /tmp/grype.tar.gz \
+            https://github.com/anchore/grype/releases/download/v0.111.0/grype_0.111.0_linux_amd64.tar.gz
+          printf '%s  %s\n' \
+            '18ed2048d7a233566b681121d4632364f5f25d72cca86acc4c7ac57210d78a87' \
+            '/tmp/grype.tar.gz' | sha256sum -c -
+          tar -xzf /tmp/grype.tar.gz -C /tmp grype
+          install -m 0755 /tmp/grype /usr/local/bin/grype
+
+      - name: Scan repository dependencies
+        run: |
+          trivy fs \
+            --quiet \
+            --scanners vuln \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            .
+
+      - name: Scan repository dependencies with Grype
+        run: |
+          grype . \
+            --fail-on high \
+            --only-fixed
+
+      - name: Scan Dockerfiles and Compose config
+        run: |
+          mkdir -p /tmp/trivy-config-scan
+          cp backend/Dockerfile /tmp/trivy-config-scan/backend.Dockerfile
+          cp frontend/Dockerfile /tmp/trivy-config-scan/frontend.Dockerfile
+          cp ansible-runner/Dockerfile /tmp/trivy-config-scan/ansible-runner.Dockerfile
+          cp docker-compose.yml /tmp/trivy-config-scan/docker-compose.yml
+          trivy config \
+            --quiet \
+            --severity HIGH,CRITICAL \
+            /tmp/trivy-config-scan
