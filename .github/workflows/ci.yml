@@ -16,6 +16,36 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  merge-conflict-check:
+    name: Merge Conflict Check
+    if: ${{ github.server_url == 'https://github.com' && github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out pull request head
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Verify pull request merges with current base
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          BASE_REPO: ${{ github.repository }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add base "https://github.com/${BASE_REPO}.git"
+          git fetch --no-tags --depth=1 base "+refs/heads/${BASE_REF}:refs/remotes/base/${BASE_REF}"
+
+          if ! git merge --no-commit --no-ff "refs/remotes/base/${BASE_REF}"; then
+            echo "Pull request does not merge cleanly with ${BASE_REF}."
+            echo "Conflicted files:"
+            git diff --name-only --diff-filter=U
+            exit 1
+          fi
+
   backend:
     name: Backend
     if: ${{ github.server_url == 'https://github.com' }}

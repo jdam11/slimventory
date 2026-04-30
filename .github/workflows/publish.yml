@@ -39,18 +39,10 @@ jobs:
           git tag -f "v${{ steps.version.outputs.version }}" "$GITHUB_SHA"
           git push --force origin "v${{ steps.version.outputs.version }}"
 
-  ci:
-    name: CI
-    if: ${{ github.server_url == 'https://github.com' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.event.pull_request.head.ref, 'public-release/v') }}
-    uses: ./.github/workflows/ci.yml
-    permissions:
-      contents: read
-
   publish:
     name: Build and push ${{ matrix.service }}
     if: ${{ github.server_url == 'https://github.com' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.event.pull_request.head.ref, 'public-release/v') }}
     needs:
-      - ci
       - release-meta
     runs-on: ubuntu-latest
 
@@ -131,8 +123,47 @@ jobs:
             echo "- \`${{ matrix.ghcr_image }}@${DIGEST}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload image digest
+      - name: Scan pushed image
+        env:
+          IMAGE_REF: ${{ matrix.ghcr_image }}@${{ steps.build.outputs.digest }}
+        run: |
+          curl -fsSLo /tmp/trivy.tar.gz \
+            https://github.com/aquasecurity/trivy/releases/download/v0.69.3/trivy_0.69.3_Linux-64bit.tar.gz
+          printf '%s  %s\n' \
+            '1816b632dfe529869c740c0913e36bd1629cb7688bd5634f4a858c1d57c88b75' \
+            '/tmp/trivy.tar.gz' | sha256sum -c -
+          tar -xzf /tmp/trivy.tar.gz -C /tmp trivy
+          install -m 0755 /tmp/trivy /usr/local/bin/trivy
+
+          mkdir -p image-scans
+          scan_file="image-scans/${{ matrix.service }}.txt"
+          set +e
+          trivy image \
+            --quiet \
+            --scanners vuln \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --exit-code 1 \
+            "$IMAGE_REF" | tee "$scan_file"
+          scan_status=${PIPESTATUS[0]}
+          set -e
+
+          {
+            echo
+            echo "### ${{ matrix.service }} image vulnerability scan"
+            echo
+            echo "- Image: \`${IMAGE_REF}\`"
+            echo "- Scanner: Trivy v0.69.3"
+            echo "- Result: $([ "$scan_status" -eq 0 ] && echo 'passed' || echo 'failed')"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          exit "$scan_status"
+
+      - name: Upload image release metadata
+        if: ${{ always() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: image-digest-${{ matrix.service }}
-          path: image-digests/${{ matrix.service }}.txt
+          name: image-release-${{ matrix.service }}
+          path: |
+            image-digests/${{ matrix.service }}.txt
+            image-scans/${{ matrix.service }}.txt
