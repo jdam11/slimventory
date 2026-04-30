@@ -92,6 +92,7 @@ jobs:
           password: ${{ github.token }}
 
       - name: Build and push
+        id: build
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: ${{ matrix.context }}
@@ -105,3 +106,33 @@ jobs:
           cache-to: |
             type=registry,ref=${{ matrix.image }}:buildcache,mode=max
             type=registry,ref=${{ matrix.ghcr_image }}:buildcache,mode=max
+
+      - name: Record image digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          VERSION: ${{ needs.release-meta.outputs.version }}
+        run: |
+          mkdir -p image-digests
+          digest_file="image-digests/${{ matrix.service }}.txt"
+          {
+            echo "${{ matrix.service }}"
+            echo "${{ matrix.image }}:${VERSION}"
+            echo "${{ matrix.image }}@${DIGEST}"
+            echo "${{ matrix.ghcr_image }}:${VERSION}"
+            echo "${{ matrix.ghcr_image }}@${DIGEST}"
+          } > "$digest_file"
+
+          {
+            echo "### ${{ matrix.service }} image digest"
+            echo
+            echo "- \`${{ matrix.image }}:${VERSION}\`"
+            echo "- \`${{ matrix.image }}@${DIGEST}\`"
+            echo "- \`${{ matrix.ghcr_image }}:${VERSION}\`"
+            echo "- \`${{ matrix.ghcr_image }}@${DIGEST}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload image digest
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: image-digest-${{ matrix.service }}
+          path: image-digests/${{ matrix.service }}.txt
