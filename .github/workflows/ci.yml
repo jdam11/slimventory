@@ -64,25 +64,71 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
+          fetch-depth: 2
           persist-credentials: false
 
+      - name: Detect backend changes
+        id: backend-changes
+        working-directory: .
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          changed_files=""
+
+          if [ "$EVENT_NAME" = "pull_request" ] && [ -n "$BASE_SHA" ]; then
+            if git fetch --no-tags --depth=1 origin "$BASE_SHA"; then
+              changed_files=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+            else
+              echo "Unable to fetch pull request base; running backend checks."
+              echo "changed=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          elif [ "$EVENT_NAME" = "push" ] && [ -n "$BEFORE_SHA" ] && [ "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
+            if git fetch --no-tags --depth=1 origin "$BEFORE_SHA"; then
+              changed_files=$(git diff --name-only "$BEFORE_SHA" "$HEAD_SHA")
+            else
+              echo "Unable to fetch previous push commit; running backend checks."
+              echo "changed=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          else
+            echo "No comparable base commit for ${EVENT_NAME}; running backend checks."
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if printf '%s\n' "$changed_files" | grep -Eq '^backend/'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Install uv
+        if: ${{ steps.backend-changes.outputs.changed == 'true' }}
         working-directory: backend
         run: pip install uv
 
       - name: Sync backend dependencies
+        if: ${{ steps.backend-changes.outputs.changed == 'true' }}
         working-directory: backend
         run: uv sync --frozen --extra dev --extra test
 
       - name: Run backend lint
+        if: ${{ steps.backend-changes.outputs.changed == 'true' }}
         working-directory: backend
         run: uv run ruff check app/
 
       - name: Run backend tests
+        if: ${{ steps.backend-changes.outputs.changed == 'true' }}
         working-directory: backend
         run: uv run python -m pytest tests/ -v
 
       - name: Compile backend sources
+        if: ${{ steps.backend-changes.outputs.changed == 'true' }}
         working-directory: backend
         run: uv run python -m compileall app tests
 
