@@ -18,7 +18,7 @@ concurrency:
 jobs:
   release-meta:
     name: Prepare Accepted Release
-    if: ${{ github.server_url == 'https://github.com' && github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'public-release/v') }}
+    if: ${{ github.server_url == 'https://github.com' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.event.pull_request.head.ref, 'public-release/v') }}
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -41,14 +41,14 @@ jobs:
 
   ci:
     name: CI
-    if: ${{ github.server_url == 'https://github.com' && github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'public-release/v') }}
+    if: ${{ github.server_url == 'https://github.com' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.event.pull_request.head.ref, 'public-release/v') }}
     uses: ./.github/workflows/ci.yml
     permissions:
       contents: read
 
   publish:
     name: Build and push ${{ matrix.service }}
-    if: ${{ github.server_url == 'https://github.com' && github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'public-release/v') }}
+    if: ${{ github.server_url == 'https://github.com' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.event.pull_request.head.ref, 'public-release/v') }}
     needs:
       - ci
       - release-meta
