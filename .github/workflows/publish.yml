@@ -8,8 +8,7 @@ on:
       - main
 
 permissions:
-  contents: write
-  packages: write
+  contents: read
 
 concurrency:
   group: publish-${{ github.ref }}
@@ -19,40 +18,36 @@ jobs:
   release-meta:
     name: Prepare Accepted Release
     if: ${{ github.server_url == 'https://github.com' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.event.pull_request.head.ref, 'public-release/v') }}
-    runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.version.outputs.version }}
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
-
-      - name: Extract version from release branch
-        id: version
-        run: |
-          RELEASE_BRANCH="${{ github.event.pull_request.head.ref }}"
-          VERSION="${RELEASE_BRANCH#public-release/v}"
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-
-      - name: Tag accepted public release
-        run: |
-          git tag -f "v${{ steps.version.outputs.version }}" "$GITHUB_SHA"
-          git push --force origin "v${{ steps.version.outputs.version }}"
-
-  ci:
-    name: CI
-    if: ${{ github.server_url == 'https://github.com' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.event.pull_request.head.ref, 'public-release/v') }}
-    uses: ./.github/workflows/ci.yml
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      release_sha: ${{ steps.version.outputs.release_sha }}
 
-  publish:
-    name: Build and push ${{ matrix.service }}
+    steps:
+      - name: Extract version from release branch
+        id: version
+        env:
+          RELEASE_BRANCH: ${{ github.event.pull_request.head.ref }}
+          RELEASE_SHA: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
+        run: |
+          version="${RELEASE_BRANCH#public-release/v}"
+          if [ -z "$version" ] || [ "$version" = "$RELEASE_BRANCH" ]; then
+            echo "Unable to extract release version from ${RELEASE_BRANCH}" >&2
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "release_sha=${RELEASE_SHA}" >> "$GITHUB_OUTPUT"
+
+  build-image-artifacts:
+    name: Build image artifact (${{ matrix.service }})
     if: ${{ github.server_url == 'https://github.com' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.event.pull_request.head.ref, 'public-release/v') }}
     needs:
-      - ci
       - release-meta
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
 
     strategy:
       fail-fast: false
@@ -60,79 +55,227 @@ jobs:
         include:
           - service: backend
             context: ./backend
-            image: jdam11/slim-backend
-            ghcr_image: ghcr.io/jdam11/slim-backend
           - service: frontend
             context: ./frontend
-            image: jdam11/slim-frontend
-            ghcr_image: ghcr.io/jdam11/slim-frontend
           - service: ansible-runner
             context: ./ansible-runner
-            image: jdam11/slim-ansible-runner
-            ghcr_image: ghcr.io/jdam11/slim-ansible-runner
 
     steps:
       - name: Check out repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
-
-      - name: Log in to Docker Hub
-        uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          persist-credentials: false
 
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ github.token }}
-
-      - name: Build and push
-        id: build
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
-        with:
-          context: ${{ matrix.context }}
-          push: true
-          tags: |
-            ${{ matrix.image }}:latest
-            ${{ matrix.image }}:${{ needs.release-meta.outputs.version }}
-            ${{ matrix.ghcr_image }}:latest
-            ${{ matrix.ghcr_image }}:${{ needs.release-meta.outputs.version }}
-          cache-from: type=registry,ref=${{ matrix.image }}:buildcache
-          cache-to: |
-            type=registry,ref=${{ matrix.image }}:buildcache,mode=max
-            type=registry,ref=${{ matrix.ghcr_image }}:buildcache,mode=max
-
-      - name: Record image digest
+      - name: Build Docker image artifact
         env:
-          DIGEST: ${{ steps.build.outputs.digest }}
+          VERSION: ${{ needs.release-meta.outputs.version }}
+          SERVICE: ${{ matrix.service }}
+          CONTEXT: ${{ matrix.context }}
+        run: |
+          mkdir -p image-artifacts
+          local_image="slimventory/${SERVICE}:${VERSION}"
+          docker build --pull --tag "$local_image" "$CONTEXT"
+          docker save --output "image-artifacts/${SERVICE}.tar" "$local_image"
+
+      - name: Upload Docker image artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: image-tar-${{ matrix.service }}
+          path: image-artifacts/${{ matrix.service }}.tar
+          if-no-files-found: error
+          retention-days: 1
+
+  scan-image-artifacts:
+    name: Scan image artifact (${{ matrix.service }})
+    if: ${{ github.server_url == 'https://github.com' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.event.pull_request.head.ref, 'public-release/v') }}
+    needs:
+      - release-meta
+      - build-image-artifacts
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: backend
+          - service: frontend
+          - service: ansible-runner
+
+    steps:
+      - name: Download Docker image artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: image-tar-${{ matrix.service }}
+          path: image-artifacts
+
+      - name: Scan Docker image artifact
+        env:
+          SERVICE: ${{ matrix.service }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/trivy-cache"
+          docker run --rm \
+            --volume "$PWD/image-artifacts:/images:ro" \
+            --volume "$RUNNER_TEMP/trivy-cache:/root/.cache/trivy" \
+            docker.io/aquasec/trivy:0.69.3@sha256:bcc376de8d77cfe086a917230e818dc9f8528e3c852f7b1aff648949b6258d1c \
+            image \
+            --quiet \
+            --scanners vuln \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --exit-code 1 \
+            --input "/images/${SERVICE}.tar"
+
+  push-images:
+    name: Push image (${{ matrix.service }})
+    if: ${{ github.server_url == 'https://github.com' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.event.pull_request.head.ref, 'public-release/v') }}
+    needs:
+      - release-meta
+      - scan-image-artifacts
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+      packages: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: backend
+            image: jdam11/slim-backend
+            ghcr_image: ghcr.io/jdam11/slim-backend
+          - service: frontend
+            image: jdam11/slim-frontend
+            ghcr_image: ghcr.io/jdam11/slim-frontend
+          - service: ansible-runner
+            image: jdam11/slim-ansible-runner
+            ghcr_image: ghcr.io/jdam11/slim-ansible-runner
+
+    steps:
+      - name: Download Docker image artifact
+        env:
+          ARTIFACT_NAME: image-tar-${{ matrix.service }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p image-artifacts
+          artifacts_json=$(curl -fsSL \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${REPO}/actions/runs/${RUN_ID}/artifacts?per_page=100")
+          artifact_id=$(ARTIFACTS_JSON="$artifacts_json" python3 - <<'PY'
+          import json
+          import os
+
+          target = os.environ["ARTIFACT_NAME"]
+          data = json.loads(os.environ["ARTIFACTS_JSON"])
+          matches = [
+              str(item["id"])
+              for item in data.get("artifacts", [])
+              if item.get("name") == target and not item.get("expired")
+          ]
+          if not matches:
+              raise SystemExit(f"artifact not found: {target}")
+          print(matches[0])
+          PY
+          )
+          curl -fsSL \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -o artifact.zip \
+            "https://api.github.com/repos/${REPO}/actions/artifacts/${artifact_id}/zip"
+          python3 - <<'PY'
+          import zipfile
+
+          with zipfile.ZipFile("artifact.zip") as archive:
+              archive.extractall("image-artifacts")
+          PY
+
+      - name: Push Docker Hub and GHCR tags
+        env:
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          GHCR_IMAGE: ${{ matrix.ghcr_image }}
+          GITHUB_TOKEN: ${{ github.token }}
+          IMAGE: ${{ matrix.image }}
+          SERVICE: ${{ matrix.service }}
           VERSION: ${{ needs.release-meta.outputs.version }}
         run: |
-          mkdir -p image-digests
-          digest_file="image-digests/${{ matrix.service }}.txt"
-          {
-            echo "${{ matrix.service }}"
-            echo "${{ matrix.image }}:${VERSION}"
-            echo "${{ matrix.image }}@${DIGEST}"
-            echo "${{ matrix.ghcr_image }}:${VERSION}"
-            echo "${{ matrix.ghcr_image }}@${DIGEST}"
-          } > "$digest_file"
+          set -euo pipefail
+          cleanup() {
+            docker logout >/dev/null 2>&1 || true
+            docker logout ghcr.io >/dev/null 2>&1 || true
+            rm -f "$HOME/.docker/config.json"
+          }
+          trap cleanup EXIT
+
+          tar_path=$(find image-artifacts -name "${SERVICE}.tar" -print -quit)
+          if [ -z "$tar_path" ]; then
+            echo "Image artifact for ${SERVICE} was not found." >&2
+            exit 1
+          fi
+
+          docker load --input "$tar_path"
+          local_image="slimventory/${SERVICE}:${VERSION}"
+          docker tag "$local_image" "${IMAGE}:latest"
+          docker tag "$local_image" "${IMAGE}:${VERSION}"
+          docker tag "$local_image" "${GHCR_IMAGE}:latest"
+          docker tag "$local_image" "${GHCR_IMAGE}:${VERSION}"
+
+          printf '%s' "$DOCKERHUB_TOKEN" | docker login --username "$DOCKERHUB_USERNAME" --password-stdin
+          printf '%s' "$GITHUB_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+
+          docker push "${IMAGE}:latest"
+          docker push "${IMAGE}:${VERSION}"
+          docker push "${GHCR_IMAGE}:latest"
+          docker push "${GHCR_IMAGE}:${VERSION}"
 
           {
-            echo "### ${{ matrix.service }} image digest"
+            echo "### ${SERVICE} image publish"
             echo
-            echo "- \`${{ matrix.image }}:${VERSION}\`"
-            echo "- \`${{ matrix.image }}@${DIGEST}\`"
-            echo "- \`${{ matrix.ghcr_image }}:${VERSION}\`"
-            echo "- \`${{ matrix.ghcr_image }}@${DIGEST}\`"
+            echo "- \`${IMAGE}:latest\`"
+            echo "- \`${IMAGE}:${VERSION}\`"
+            echo "- \`${GHCR_IMAGE}:latest\`"
+            echo "- \`${GHCR_IMAGE}:${VERSION}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload image digest
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: image-digest-${{ matrix.service }}
-          path: image-digests/${{ matrix.service }}.txt
+  release-tag:
+    name: Tag Accepted Public Release
+    if: ${{ github.server_url == 'https://github.com' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.event.pull_request.head.ref, 'public-release/v') }}
+    needs:
+      - release-meta
+      - push-images
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Tag accepted public release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ needs.release-meta.outputs.release_sha }}
+          REPO: ${{ github.repository }}
+          VERSION: ${{ needs.release-meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          workdir=$(mktemp -d)
+          cleanup() {
+            rm -rf "$workdir"
+          }
+          trap cleanup EXIT
+
+          git init "$workdir"
+          cd "$workdir"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO}.git"
+          git fetch --no-tags --depth=1 origin "$RELEASE_SHA"
+          git tag -f "v${VERSION}" FETCH_HEAD
+          git push --force origin "refs/tags/v${VERSION}"
