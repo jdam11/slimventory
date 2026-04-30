@@ -1,7 +1,6 @@
 services:
   traefik:
     image: traefik:v3.3
-    container_name: slim-traefik
     restart: unless-stopped
     depends_on:
       - frontend
@@ -10,11 +9,16 @@ services:
       - --providers.docker=true
       - --providers.docker.exposedbydefault=false
       - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
       - --entrypoints.websecure.address=:443
       - --certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}
       - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
-      - --certificatesresolvers.letsencrypt.acme.httpchallenge=true
-      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
+      - --certificatesresolvers.letsencrypt.acme.dnschallenge=true
+      - --certificatesresolvers.letsencrypt.acme.dnschallenge.provider=cloudflare
+      - --certificatesresolvers.letsencrypt.acme.dnschallenge.resolvers=1.1.1.1:53,1.0.0.1:53
+    environment:
+      CF_DNS_API_TOKEN: ${CF_DNS_API_TOKEN}
     ports:
       - "80:80"
       - "443:443"
@@ -26,7 +30,7 @@ services:
     ports: !override []
     labels:
       - traefik.enable=true
-      - traefik.http.routers.slimventory.rule=Host(`${PUBLIC_HOST}`)
+      - traefik.http.routers.slimventory.rule=Host(`${PUBLIC_FQDN}`)
       - traefik.http.routers.slimventory.entrypoints=websecure
       - traefik.http.routers.slimventory.tls=true
       - traefik.http.routers.slimventory.tls.certresolver=letsencrypt
