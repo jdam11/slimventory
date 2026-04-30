@@ -1,12 +1,14 @@
 name: Publish Docker Images
 
 on:
-  push:
-    tags:
-      - 'v[0-9]*.[0-9]*.[0-9]*'
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 concurrency:
@@ -14,17 +16,42 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  release-meta:
+    name: Prepare Accepted Release
+    if: ${{ github.server_url == 'https://github.com' && github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'public-release/v') }}
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Extract version from release branch
+        id: version
+        run: |
+          RELEASE_BRANCH="${{ github.event.pull_request.head.ref }}"
+          VERSION="${RELEASE_BRANCH#public-release/v}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Tag accepted public release
+        run: |
+          git tag -f "v${{ steps.version.outputs.version }}" "$GITHUB_SHA"
+          git push --force origin "v${{ steps.version.outputs.version }}"
+
   ci:
     name: CI
-    if: ${{ github.server_url == 'https://github.com' }}
+    if: ${{ github.server_url == 'https://github.com' && github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'public-release/v') }}
     uses: ./.github/workflows/ci.yml
     permissions:
       contents: read
 
   publish:
     name: Build and push ${{ matrix.service }}
-    if: ${{ github.server_url == 'https://github.com' }}
-    needs: ci
+    if: ${{ github.server_url == 'https://github.com' && github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'public-release/v') }}
+    needs:
+      - ci
+      - release-meta
     runs-on: ubuntu-latest
 
     strategy:
@@ -64,12 +91,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ github.token }}
 
-      - name: Extract version from tag
-        id: version
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-
       - name: Build and push
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
@@ -77,9 +98,9 @@ jobs:
           push: true
           tags: |
             ${{ matrix.image }}:latest
-            ${{ matrix.image }}:${{ steps.version.outputs.version }}
+            ${{ matrix.image }}:${{ needs.release-meta.outputs.version }}
             ${{ matrix.ghcr_image }}:latest
-            ${{ matrix.ghcr_image }}:${{ steps.version.outputs.version }}
+            ${{ matrix.ghcr_image }}:${{ needs.release-meta.outputs.version }}
           cache-from: type=registry,ref=${{ matrix.image }}:buildcache
           cache-to: |
             type=registry,ref=${{ matrix.image }}:buildcache,mode=max
