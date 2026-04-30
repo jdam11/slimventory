@@ -96,8 +96,51 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 2
+
+      - name: Detect frontend changes
+        id: frontend-changes
+        working-directory: .
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          changed_files=""
+
+          if [ "$EVENT_NAME" = "pull_request" ] && [ -n "$BASE_SHA" ]; then
+            if git fetch --no-tags --depth=1 origin "$BASE_SHA"; then
+              changed_files=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+            else
+              echo "Unable to fetch pull request base; running frontend build."
+              echo "changed=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          elif [ "$EVENT_NAME" = "push" ] && [ -n "$BEFORE_SHA" ] && [ "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
+            if git fetch --no-tags --depth=1 origin "$BEFORE_SHA"; then
+              changed_files=$(git diff --name-only "$BEFORE_SHA" "$HEAD_SHA")
+            else
+              echo "Unable to fetch previous push commit; running frontend build."
+              echo "changed=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          else
+            echo "No comparable base commit for ${EVENT_NAME}; running frontend build."
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if printf '%s\n' "$changed_files" | grep -Eq '^(frontend/|\.github/workflows/ci\.yml$)'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Set up Node
+        if: ${{ steps.frontend-changes.outputs.changed == 'true' }}
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: "20"
@@ -105,10 +148,17 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install frontend dependencies
-        run: npm ci
+        if: ${{ steps.frontend-changes.outputs.changed == 'true' }}
+        run: npm ci --prefer-offline --no-audit --fund=false
 
       - name: Build frontend
+        if: ${{ steps.frontend-changes.outputs.changed == 'true' }}
         run: npm run build
+
+      - name: Report skipped frontend build
+        if: ${{ steps.frontend-changes.outputs.changed == 'false' }}
+        working-directory: .
+        run: echo "No frontend or CI workflow changes detected; skipped frontend setup and build."
 
   secrets:
     name: Secret Scan
