@@ -1,6 +1,6 @@
 services:
   caddy:
-    image: caddy:2.11
+    image: caddy:2.11.2-alpine
     restart: unless-stopped
     depends_on:
       - frontend

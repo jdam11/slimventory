@@ -375,7 +375,7 @@ export default function JobTemplatesPage() {
               options={buildSortedOptions(vaultCredentials?.items ?? [], (item) => ({ value: item.id, label: item.name }))}
             />
           </Form.Item>
-          <Divider titlePlacement="left" plain>
+          <Divider orientation="left" plain>
             Runbook Metadata
           </Divider>
           <Form.Item label="Enable as Runbook" name="runbook_enabled" valuePropName="checked">

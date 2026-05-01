@@ -128,5 +128,6 @@ async def stream_output(sidecar_job_id: str) -> AsyncGenerator[Dict[str, Any], N
                 yield {"type": "error", "message": f"Sidecar HTTP error: {exc.response.status_code}"}
                 await asyncio.sleep(2.0)
             except Exception:
+                log.exception("Unexpected error polling sidecar job %s", sidecar_job_id)
                 yield {"type": "error", "message": "An unexpected error occurred"}
                 await asyncio.sleep(2.0)

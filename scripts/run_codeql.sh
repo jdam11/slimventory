@@ -23,11 +23,11 @@ resolve_codeql() {
     if [ ! -x "${install_dir}/codeql/codeql" ]; then
         echo "Downloading CodeQL CLI v${CODEQL_VERSION}..." >&2
         tmp=$(mktemp -d)
-        trap 'rm -rf "$tmp"' EXIT INT TERM
         curl -fsSLo "${tmp}/codeql.tar.gz" "${CODEQL_URL}"
         printf '%s  %s\n' "${CODEQL_SHA256}" "${tmp}/codeql.tar.gz" | sha256sum -c - >&2
         mkdir -p "${install_dir}"
         tar -xzf "${tmp}/codeql.tar.gz" -C "${install_dir}"
+        rm -rf "$tmp"
     fi
 
     echo "${install_dir}/codeql/codeql"

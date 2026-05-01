@@ -5,7 +5,7 @@
  * 2. Shows an editable table of detected fields (name, default, is_secret)
  * 3. On confirm, creates the App record then all AppField records
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Alert,
   Button,
@@ -66,6 +66,14 @@ export default function AppImportModal({ repo, open, onClose, onImported }: Prop
       setPreviewError(msg ?? "Failed to parse repository.");
     },
   });
+
+  useEffect(() => {
+    if (open) {
+      setStep("preview");
+      setPreviewError(null);
+      previewMutation.mutate();
+    }
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleImport() {
     if (!appName.trim()) {
