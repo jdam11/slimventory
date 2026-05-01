@@ -153,6 +153,8 @@ def health():
 @app.post("/run", status_code=202)
 def start_run(body: RunRequest):
     _validate_paths(body.repo_path, body.playbook_path)
+    if not os.path.isdir(body.repo_path):
+        raise HTTPException(status_code=400, detail="repo_path does not exist or is not a directory")
     _ensure_known_hosts_storage()
     job_id = str(uuid4())
     output_path = f"/tmp/run_{job_id}.txt"
@@ -199,9 +201,6 @@ def start_run(body: RunRequest):
         env["KRB5CCNAME"] = body.kerberos_ccache_name
 
     log.info("job=%s cmd=%s cwd=%s", job_id, cmd, body.repo_path)
-
-    if not os.path.isdir(body.repo_path):
-        raise HTTPException(status_code=400, detail="repo_path does not exist or is not a directory")
 
     out_f = open(output_path, "ab")
     try:
