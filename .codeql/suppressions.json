@@ -2,13 +2,13 @@
   {
     "rule": "py/path-injection",
     "file": "ansible-runner/main.py",
-    "line": 162,
+    "line": 176,
     "reason": "real_repo is os.path.realpath() of user input, bounds-checked against REPOS_BASE. CodeQL does not model realpath+startswith as a path sanitizer."
   },
   {
     "rule": "py/command-line-injection",
     "file": "ansible-runner/main.py",
-    "line": 219,
+    "line": 237,
     "reason": "List-form Popen with shell=False; real_playbook and real_repo are realpath-validated against REPOS_BASE; body.inventory is realpath-validated to stay within real_repo."
   },
   {
@@ -38,7 +38,7 @@
   {
     "rule": "py/log-injection",
     "file": "ansible-runner/main.py",
-    "line": 214,
+    "line": 232,
     "reason": "Path is validated by _validate_paths + realpath before reaching this log call."
   },
   {
@@ -74,19 +74,19 @@
   {
     "rule": "py/empty-except",
     "file": "ansible-runner/main.py",
-    "line": 82,
+    "line": 96,
     "reason": "OSError on file/process cleanup \u2014 best-effort teardown, must not mask the original error."
   },
   {
     "rule": "py/empty-except",
     "file": "ansible-runner/main.py",
-    "line": 98,
+    "line": 112,
     "reason": "OSError on file/process cleanup \u2014 best-effort teardown, must not mask the original error."
   },
   {
     "rule": "py/empty-except",
     "file": "ansible-runner/main.py",
-    "line": 299,
+    "line": 317,
     "reason": "OSError on process termination during cleanup \u2014 best-effort teardown."
   },
   {

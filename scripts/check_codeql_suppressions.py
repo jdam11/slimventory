@@ -47,20 +47,27 @@ def head_suppressions():
     return json.loads(result.stdout)
 
 
-def find_old_line(old_entries, rule, file_path, current_line):
+def find_old_line(old_entries, rule, file_path, current_reason):
     """Find the best-matching old line for a suppression entry.
 
-    Matches by rule+file, then picks the candidate whose old line is closest
-    to current_line. This handles files with multiple suppressions for the
-    same rule without dict-key collisions.
+    Strategy (in order):
+    1. Single candidate for (rule, file) — unambiguous, return it.
+    2. Multiple candidates — match on reason (exact). Return only if exactly
+       one candidate matches; otherwise the pairing is ambiguous and None is
+       returned so the entry is treated as new (no drift check).
     """
-    candidates = [
-        e["line"] for e in old_entries
-        if e["rule"] == rule and e["file"] == file_path
-    ]
+    candidates = [e for e in old_entries if e["rule"] == rule and e["file"] == file_path]
     if not candidates:
         return None
-    return min(candidates, key=lambda ln: abs(ln - current_line))
+    if len(candidates) == 1:
+        return candidates[0]["line"]
+    # Multiple entries for same rule+file: use reason as a stable discriminator.
+    if current_reason:
+        reason_matches = [e for e in candidates if e.get("reason") == current_reason]
+        if len(reason_matches) == 1:
+            return reason_matches[0]["line"]
+    # Ambiguous — can't reliably identify the corresponding old entry.
+    return None
 
 
 def main():
@@ -99,7 +106,7 @@ def main():
 
         # Use the old committed line as the shift basis so that co-staged
         # suppressions.json updates are not double-counted.
-        old_line = find_old_line(old_entries, rule, file_path, current_line)
+        old_line = find_old_line(old_entries, rule, file_path, entry.get("reason", ""))
         if old_line is not None:
             shift = lines_added_before(file_path, old_line)
             expected = old_line + shift
