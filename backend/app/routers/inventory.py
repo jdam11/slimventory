@@ -412,7 +412,10 @@ def _display_value(value: Optional[str], is_secret: bool) -> Optional[str]:
 
 
 def _inventory_row_or_404(db: Session, host_id: int) -> Dict[str, Any]:
-    row = db.execute(text(f"{_QUERY} WHERE id = :host_id"), {"host_id": host_id}).first()  # nosemgrep
+    stmt = text(  # nosemgrep: python.sqlalchemy.security.audit.avoid-sqlalchemy-text.avoid-sqlalchemy-text
+        f"{_QUERY} WHERE id = :host_id"
+    )
+    row = db.execute(stmt, {"host_id": host_id}).first()
     if not row:
         raise HTTPException(status_code=404, detail="Host not found")
     return dict(row._mapping)
@@ -1157,7 +1160,10 @@ def list_inventory(
     _: AppUser = Depends(require_authenticated),
 ):
     total = db.execute(text(_COUNT_QUERY)).scalar() or 0
-    rows = db.execute(text(f"{_QUERY} LIMIT :limit OFFSET :skip"), {"limit": limit, "skip": skip})  # nosemgrep
+    stmt = text(  # nosemgrep: python.sqlalchemy.security.audit.avoid-sqlalchemy-text.avoid-sqlalchemy-text
+        f"{_QUERY} LIMIT :limit OFFSET :skip"
+    )
+    rows = db.execute(stmt, {"limit": limit, "skip": skip})
     items = [dict(row._mapping) for row in rows]
     return {"items": items, "total": total}
 

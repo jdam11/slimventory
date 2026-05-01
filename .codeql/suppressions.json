@@ -21,13 +21,13 @@
     "rule": "py/log-injection",
     "file": "backend/app/audit.py",
     "line": 52,
-    "reason": "Audit log of authenticated event metadata — values are internally generated."
+    "reason": "Audit log of authenticated event metadata \u2014 values are internally generated."
   },
   {
     "rule": "py/log-injection",
     "file": "backend/app/audit.py",
     "line": 109,
-    "reason": "Audit log of authenticated event metadata — values are internally generated."
+    "reason": "Audit log of authenticated event metadata \u2014 values are internally generated."
   },
   {
     "rule": "py/log-injection",
@@ -45,12 +45,12 @@
     "rule": "py/log-injection",
     "file": "backend/app/routers/playbook_runs.py",
     "line": 242,
-    "reason": "run_id is an integer path parameter — cannot contain log injection characters."
+    "reason": "run_id is an integer path parameter \u2014 cannot contain log injection characters."
   },
   {
     "rule": "py/log-injection",
     "file": "backend/app/services/proxmox.py",
-    "line": 769,
+    "line": 771,
     "reason": "trigger_source is a system-controlled enum value, not user input."
   },
   {
@@ -75,49 +75,49 @@
     "rule": "py/empty-except",
     "file": "ansible-runner/main.py",
     "line": 82,
-    "reason": "OSError on file/process cleanup — best-effort teardown, must not mask the original error."
+    "reason": "OSError on file/process cleanup \u2014 best-effort teardown, must not mask the original error."
   },
   {
     "rule": "py/empty-except",
     "file": "ansible-runner/main.py",
     "line": 98,
-    "reason": "OSError on file/process cleanup — best-effort teardown, must not mask the original error."
+    "reason": "OSError on file/process cleanup \u2014 best-effort teardown, must not mask the original error."
   },
   {
     "rule": "py/empty-except",
     "file": "ansible-runner/main.py",
     "line": 294,
-    "reason": "OSError on process termination during cleanup — best-effort teardown."
+    "reason": "OSError on process termination during cleanup \u2014 best-effort teardown."
   },
   {
     "rule": "py/empty-except",
     "file": "backend/app/services/git_service.py",
     "line": 184,
-    "reason": "OSError on temp-file cleanup — intentional silent failure during teardown."
+    "reason": "OSError on temp-file cleanup \u2014 intentional silent failure during teardown."
   },
   {
     "rule": "py/empty-except",
     "file": "backend/app/services/git_service.py",
     "line": 270,
-    "reason": "Exception on best-effort YAML role metadata parse — invalid files intentionally skipped."
+    "reason": "Exception on best-effort YAML role metadata parse \u2014 invalid files intentionally skipped."
   },
   {
     "rule": "py/empty-except",
     "file": "backend/app/services/git_service.py",
     "line": 286,
-    "reason": "Exception on best-effort YAML defaults parse — invalid files intentionally skipped."
+    "reason": "Exception on best-effort YAML defaults parse \u2014 invalid files intentionally skipped."
   },
   {
     "rule": "py/empty-except",
     "file": "backend/app/services/proxmox.py",
-    "line": 182,
-    "reason": "ValueError on VLAN tag parse — invalid tokens are intentionally skipped."
+    "line": 184,
+    "reason": "ValueError on VLAN tag parse \u2014 invalid tokens are intentionally skipped."
   },
   {
     "rule": "py/empty-except",
     "file": "backend/app/services/proxmox.py",
-    "line": 261,
-    "reason": "ValueError on VLAN tag parse — invalid tokens are intentionally skipped."
+    "line": 263,
+    "reason": "ValueError on VLAN tag parse \u2014 invalid tokens are intentionally skipped."
   },
   {
     "rule": "py/empty-except",
