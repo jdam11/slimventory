@@ -268,44 +268,33 @@ jobs:
             --output=/tmp/js-results.sarif \
             --ram=4096
 
-      - name: Apply suppressions and check for findings
+      - name: Check for findings
         run: |
           python3 - <<'EOF'
           import json, sys
 
           with open(".codeql/suppressions.json") as sf:
-              suppression_list = json.load(sf)
+              SUPPRESSED = {(e["rule"], e["file"], e["line"]) for e in json.load(sf)}
 
-          SUPPRESSED = {(e["rule"], e["file"], e["line"]): e["reason"] for e in suppression_list}
+          def is_suppressed(rule, uri, line):
+              return any(rule == r and uri.endswith(f) and line == ln for r, f, ln in SUPPRESSED)
 
-          def match(rule, uri, line):
-              return next(
-                  ((r, f, ln) for (r, f, ln) in SUPPRESSED if rule == r and uri.endswith(f) and line == ln),
-                  None
-              )
-
-          total_unsuppressed = 0
+          total = 0
           for path, label in [("/tmp/python-results.sarif", "Python"), ("/tmp/js-results.sarif", "JS/TS")]:
               with open(path) as f:
                   data = json.load(f)
-              unsuppressed = []
-              for run in data.get("runs", []):
-                  for r in run.get("results", []):
-                      rule = r.get("ruleId", "unknown")
-                      locs = r.get("locations", [{}])
-                      loc = locs[0].get("physicalLocation", {}) if locs else {}
-                      uri = loc.get("artifactLocation", {}).get("uri", "")
-                      line = loc.get("region", {}).get("startLine")
-                      key = match(rule, uri, line)
-                      if key:
-                          r["suppressions"] = [{"kind": "inSource", "justification": SUPPRESSED[key]}]
-                      else:
-                          unsuppressed.append(r)
-              with open(path, "w") as f:
-                  json.dump(data, f)
-              if unsuppressed:
-                  print(f"\n{label}: {len(unsuppressed)} finding(s)")
-                  for r in unsuppressed:
+              results = []
+              for r in [r for run in data.get("runs", []) for r in run.get("results", [])]:
+                  rule = r.get("ruleId", "unknown")
+                  locs = r.get("locations", [{}])
+                  loc = locs[0].get("physicalLocation", {}) if locs else {}
+                  uri = loc.get("artifactLocation", {}).get("uri", "")
+                  line = loc.get("region", {}).get("startLine")
+                  if not is_suppressed(rule, uri, line):
+                      results.append(r)
+              if results:
+                  print(f"\n{label}: {len(results)} finding(s)")
+                  for r in results:
                       rule = r.get("ruleId", "unknown")
                       msg = r.get("message", {}).get("text", "")
                       locs = r.get("locations", [{}])
@@ -313,28 +302,75 @@ jobs:
                       uri = loc.get("artifactLocation", {}).get("uri", "")
                       line = loc.get("region", {}).get("startLine", "?")
                       print(f"  {rule}: {uri}:{line} — {msg}")
-              total_unsuppressed += len(unsuppressed)
+              total += len(results)
 
-          if total_unsuppressed:
-              print(f"\n{total_unsuppressed} total finding(s). Fix or suppress before merging.")
+          if total:
+              print(f"\n{total} total finding(s). Fix or suppress before merging.")
               sys.exit(1)
           else:
               print("No findings.")
           EOF
 
-      - name: Upload SARIF to GitHub Code Scanning
-        if: always()
-        uses: github/codeql-action/upload-sarif@865f5f5c36632f18690a3d569fa0a764f2da0c3e # v3
-        with:
-          sarif_file: /tmp/python-results.sarif
-          category: python
+      - name: Dismiss suppressed Code Scanning alerts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'EOF'
+          import json, os, subprocess, urllib.request, urllib.error
 
-      - name: Upload JS/TS SARIF to GitHub Code Scanning
-        if: always()
-        uses: github/codeql-action/upload-sarif@865f5f5c36632f18690a3d569fa0a764f2da0c3e # v3
-        with:
-          sarif_file: /tmp/js-results.sarif
-          category: javascript
+          with open(".codeql/suppressions.json") as sf:
+              suppressions = json.load(sf)
+
+          token = os.environ["GH_TOKEN"]
+          repo = os.environ["REPO"]
+          api = f"https://api.github.com/repos/{repo}"
+          headers = {
+              "Authorization": f"Bearer {token}",
+              "Accept": "application/vnd.github+json",
+              "X-GitHub-Api-Version": "2022-11-28",
+          }
+
+          def gh_get(url):
+              req = urllib.request.Request(url, headers=headers)
+              with urllib.request.urlopen(req) as r:
+                  return json.loads(r.read())
+
+          def gh_patch(url, body):
+              data = json.dumps(body).encode()
+              req = urllib.request.Request(url, data=data, headers={**headers, "Content-Type": "application/json"}, method="PATCH")
+              try:
+                  with urllib.request.urlopen(req) as r:
+                      return json.loads(r.read())
+              except urllib.error.HTTPError as e:
+                  print(f"  PATCH failed {e.code}: {e.read().decode()}")
+                  return None
+
+          alerts = gh_get(f"{api}/code-scanning/alerts?state=open&per_page=100")
+
+          dismissed = 0
+          for alert in alerts:
+              rule = alert.get("rule", {}).get("id", "")
+              inst = alert.get("most_recent_instance", {})
+              path = inst.get("location", {}).get("path", "")
+              line = inst.get("location", {}).get("start_line")
+              match = next(
+                  (s for s in suppressions
+                   if s["rule"] == rule and path.endswith(s["file"]) and line == s["line"]),
+                  None
+              )
+              if match:
+                  num = alert["number"]
+                  print(f"  Dismissing alert #{num}: {rule} @ {path}:{line}")
+                  gh_patch(f"{api}/code-scanning/alerts/{num}", {
+                      "state": "dismissed",
+                      "dismissed_reason": "false positive",
+                      "dismissed_comment": match["reason"],
+                  })
+                  dismissed += 1
+
+          print(f"Dismissed {dismissed} alert(s).")
+          EOF
 
   repository-security-scan:
     name: Repository Security Scan
