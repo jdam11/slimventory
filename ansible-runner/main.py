@@ -29,6 +29,7 @@ from pydantic import BaseModel
 JOB_RETENTION_SECONDS = 300
 KNOWN_HOSTS_DIR = "/known_hosts"
 ANSIBLE_KNOWN_HOSTS_FILE = f"{KNOWN_HOSTS_DIR}/ansible_known_hosts"
+REPOS_BASE = os.path.realpath("/repos")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("ansible-runner")
@@ -110,11 +111,29 @@ def _cleanup_job_later(job_id: str) -> None:
 
 def _ensure_known_hosts_storage() -> None:
     os.makedirs(KNOWN_HOSTS_DIR, exist_ok=True)
-    os.chmod(KNOWN_HOSTS_DIR, 0o700)
+    os.chmod(KNOWN_HOSTS_DIR, 0o700)  # nosemgrep: python.lang.security.audit.insecure-file-permissions.insecure-file-permissions
     if not os.path.exists(ANSIBLE_KNOWN_HOSTS_FILE):
         with open(ANSIBLE_KNOWN_HOSTS_FILE, "a", encoding="utf-8"):
             pass
     os.chmod(ANSIBLE_KNOWN_HOSTS_FILE, 0o600)
+
+
+def _validate_paths(repo_path: str, playbook_path: str) -> tuple[str, str]:
+    """Validate paths and return (real_repo, real_playbook) resolved absolute paths.
+
+    Raises HTTPException if either path escapes the allowed repos tree.
+    Callers must use the returned paths for all subsequent filesystem operations
+    to avoid TOCTOU issues with the original user-supplied strings.
+    """
+    real_repo = os.path.realpath(repo_path)
+    if not real_repo.startswith(REPOS_BASE + os.sep) and real_repo != REPOS_BASE:
+        raise HTTPException(status_code=400, detail="repo_path is outside the allowed repos directory")
+    if os.path.isabs(playbook_path):
+        raise HTTPException(status_code=400, detail="playbook_path must be a relative path")
+    real_playbook = os.path.realpath(os.path.join(real_repo, playbook_path))
+    if not real_playbook.startswith(real_repo + os.sep):
+        raise HTTPException(status_code=400, detail="playbook_path escapes the repo directory")
+    return real_repo, real_playbook
 
 
 def _write_temp_secret_file(prefix: str, suffix: str, content: str) -> str:
@@ -139,6 +158,9 @@ def health():
 
 @app.post("/run", status_code=202)
 def start_run(body: RunRequest):
+    real_repo, real_playbook = _validate_paths(body.repo_path, body.playbook_path)
+    if not os.path.isdir(real_repo):
+        raise HTTPException(status_code=400, detail="repo_path does not exist or is not a directory")
     _ensure_known_hosts_storage()
     job_id = str(uuid4())
     output_path = f"/tmp/run_{job_id}.txt"
@@ -146,10 +168,9 @@ def start_run(body: RunRequest):
     kerberos_config_path: Optional[str] = None
     vault_password_file: Optional[str] = None
 
-    cmd: List[str] = ["ansible-playbook", body.playbook_path]
+    cmd: List[str] = ["ansible-playbook", real_playbook]
 
     if body.inventory_type == "string" and body.inventory:
-        # Write the inventory string to a temp file
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".yml", prefix=f"inv_{job_id}_", delete=False
         ) as inv_f:
@@ -185,28 +206,13 @@ def start_run(body: RunRequest):
     if body.kerberos_ccache_name:
         env["KRB5CCNAME"] = body.kerberos_ccache_name
 
-    log.info("job=%s cmd=%s cwd=%s", job_id, cmd, body.repo_path)
-
-    # Validate that repo_path exists and is a directory to avoid arbitrary execution
-    if not os.path.isdir(body.repo_path):
-        _cleanup_job(
-            Job(
-                process=None,  # type: ignore[arg-type]
-                output_path=output_path,
-                output_file=None,
-                inv_path=inv_path,
-                kerberos_config_path=kerberos_config_path,
-                vault_password_file=vault_password_file,
-                status="done",
-            )
-        )
-        raise HTTPException(status_code=400, detail=f"repo_path does not exist: {body.repo_path}")
+    log.info("job=%s cmd=%s cwd=%s", job_id, cmd, real_repo)
 
     out_f = open(output_path, "ab")
     try:
         proc = subprocess.Popen(
             cmd,
-            cwd=body.repo_path,
+            cwd=real_repo,
             stdout=out_f,
             stderr=subprocess.STDOUT,
             env=env,

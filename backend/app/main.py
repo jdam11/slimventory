@@ -17,7 +17,6 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)-8s %(name)s %(message)s",
     datefmt="%Y-%m-%dT%H:%M:%S",
 )
-# Keep noisy third-party loggers quiet unless we're in DEBUG mode
 if settings.LOG_LEVEL != "DEBUG":
     for _noisy in ("uvicorn", "uvicorn.access", "apscheduler", "sqlalchemy"):
         logging.getLogger(_noisy).setLevel(logging.WARNING)

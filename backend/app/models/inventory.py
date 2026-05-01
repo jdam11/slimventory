@@ -433,7 +433,6 @@ class ProxmoxPendingHost(Base):
         return self.vlan.vlan_id if self.vlan else None
 
     status = Column(String(16), nullable=False, default="pending")  # pending | promoted | dismissed
-    # vm_type: qemu | lxc | node
     created_at = Column(DateTime, nullable=False)
     reviewed_at = Column(DateTime, nullable=True)
 

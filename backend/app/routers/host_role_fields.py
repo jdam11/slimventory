@@ -48,7 +48,6 @@ def upsert_host_role_fields(
     if not host:
         raise HTTPException(status_code=404, detail="Host not found")
 
-    # Collect all role_ids assigned to this host
     host_role_ids = set(
         row[0] for row in db.execute(select(HostRole.role_id).where(HostRole.host_id == body.host_id)).all()
     )

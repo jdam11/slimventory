@@ -23,18 +23,15 @@ def seed() -> None:
             (settings.ADMIN_USERNAME, settings.ADMIN_PASSWORD, UserRole.admin),
             (settings.READONLY_USERNAME, settings.READONLY_PASSWORD, UserRole.readonly),
         ]
+        created = skipped = 0
         for username, password, role in bootstrap:
             existing = db.query(AppUser).filter(AppUser.username == username).first()
             if not existing:
-                user = AppUser(
-                    username=username,
-                    hashed_password=hash_password(password),
-                    role=role,
-                )
-                db.add(user)
-                print(f"Created user: {username} ({role.value})")
+                db.add(AppUser(username=username, hashed_password=hash_password(password), role=role))
+                created += 1
             else:
-                print(f"User already exists: {username} — skipped")
+                skipped += 1
+        print(f"Bootstrap users: {created} created, {skipped} already existed")
 
         # ── Default app repository ─────────────────────────────────────────────
         if settings.DEFAULT_APP_REPO_URL:

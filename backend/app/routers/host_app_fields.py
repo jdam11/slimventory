@@ -47,7 +47,6 @@ def upsert_host_app_fields(
     db: Session = Depends(get_db),
     _: AppUser = Depends(require_admin),
 ):
-    # Verify the host-app association exists
     ha = db.get(HostApp, (body.host_id, body.app_id))
     if not ha:
         raise HTTPException(status_code=404, detail="Host-app association not found")
@@ -74,7 +73,6 @@ def upsert_host_app_fields(
             )
     db.commit()
 
-    # Return updated values with names
     q = (
         db.query(HostAppField, AppField.name, AppField.is_secret)
         .join(AppField, AppField.id == HostAppField.field_id)

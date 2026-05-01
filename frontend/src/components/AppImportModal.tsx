@@ -5,7 +5,7 @@
  * 2. Shows an editable table of detected fields (name, default, is_secret)
  * 3. On confirm, creates the App record then all AppField records
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Alert,
   Button,
@@ -40,7 +40,7 @@ interface Props {
 
 export default function AppImportModal({ repo, open, onClose, onImported }: Props) {
   const [step, setStep] = useState<"preview" | "confirm">("preview");
-  const [preview, setPreview] = useState<AppImportPreview | null>(null);
+  const [, setPreview] = useState<AppImportPreview | null>(null);
   const [appName, setAppName] = useState("");
   const [fields, setFields] = useState<EditableField[]>([]);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -67,12 +67,13 @@ export default function AppImportModal({ repo, open, onClose, onImported }: Prop
     },
   });
 
-  function handleOpen() {
-    setStep("preview");
-    setPreview(null);
-    setPreviewError(null);
-    previewMutation.mutate();
-  }
+  useEffect(() => {
+    if (open) {
+      setStep("preview");
+      setPreviewError(null);
+      previewMutation.mutate();
+    }
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleImport() {
     if (!appName.trim()) {

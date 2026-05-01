@@ -173,71 +173,74 @@ async def stream_run_output(
     db.close()
 
     async def generate():
-        # Already finished — replay stored output
-        if initial_status in completed_statuses:
-            if stored_output:
-                yield f"data: {json.dumps({'type': 'chunk', 'text': stored_output})}\n\n"
-            yield f"data: {json.dumps({'type': 'done', 'exit_code': stored_exit_code})}\n\n"
-            return
-
-        # Still pending / running — wait for a sidecar job id (poll DB briefly)
-        effective_sidecar_id = sidecar_job_id
-        if not effective_sidecar_id:
-            for _ in range(20):  # wait up to 10s for the task to start
-                await asyncio.sleep(0.5)
-                with SessionLocal() as sess:
-                    r = sess.get(PlaybookRun, run_id)
-                    if r and r.sidecar_job_id:
-                        effective_sidecar_id = r.sidecar_job_id
-                        break
-                    if r and r.status in completed_statuses:
-                        output = r.output or ""
-                        if output:
-                            yield f"data: {json.dumps({'type': 'chunk', 'text': output})}\n\n"
-                        yield f"data: {json.dumps({'type': 'done', 'exit_code': r.exit_code})}\n\n"
-                        return
-
-        if not effective_sidecar_id:
-            with SessionLocal() as sess:
-                r = sess.get(PlaybookRun, run_id)
-                if r and r.status in (PlaybookRunStatus.pending, PlaybookRunStatus.running):
-                    _mark_run_failed(sess, r, "run did not start in time and never received a sidecar job id")
-                    sess.commit()
-            yield f"data: {json.dumps({'type': 'error', 'message': 'Run did not start in time'})}\n\n"
-            return
-
-        # Stream from sidecar
-        async for event in runner_svc.stream_output(effective_sidecar_id):
-            yield f"data: {json.dumps(event)}\n\n"
-
-            if event["type"] == "chunk":
-                # Persist chunk to DB
-                with SessionLocal() as sess:
-                    r = sess.get(PlaybookRun, run_id)
-                    if r:
-                        r.output = (r.output or "") + event["text"]
-                        sess.commit()
-
-            elif event["type"] == "done":
-                exit_code = event.get("exit_code")
-                final_status = PlaybookRunStatus.success if exit_code == 0 else PlaybookRunStatus.failed
-                with SessionLocal() as sess:
-                    r = sess.get(PlaybookRun, run_id)
-                    if r:
-                        r.status = final_status
-                        r.exit_code = exit_code
-                        r.finished_at = datetime.now(timezone.utc)
-                        sess.commit()
+        try:
+            # Already finished — replay stored output
+            if initial_status in completed_statuses:
+                if stored_output:
+                    yield f"data: {json.dumps({'type': 'chunk', 'text': stored_output})}\n\n"
+                yield f"data: {json.dumps({'type': 'done', 'exit_code': stored_exit_code})}\n\n"
                 return
 
-            elif event["type"] == "orphaned":
+            # Still pending / running — wait for a sidecar job id (poll DB briefly)
+            effective_sidecar_id = sidecar_job_id
+            if not effective_sidecar_id:
+                for _ in range(20):  # wait up to 10s for the task to start
+                    await asyncio.sleep(0.5)
+                    with SessionLocal() as sess:
+                        r = sess.get(PlaybookRun, run_id)
+                        if r and r.sidecar_job_id:
+                            effective_sidecar_id = r.sidecar_job_id
+                            break
+                        if r and r.status in completed_statuses:
+                            output = r.output or ""
+                            if output:
+                                yield f"data: {json.dumps({'type': 'chunk', 'text': output})}\n\n"
+                            yield f"data: {json.dumps({'type': 'done', 'exit_code': r.exit_code})}\n\n"
+                            return
+
+            if not effective_sidecar_id:
                 with SessionLocal() as sess:
                     r = sess.get(PlaybookRun, run_id)
                     if r and r.status in (PlaybookRunStatus.pending, PlaybookRunStatus.running):
-                        _mark_run_failed(sess, r, event["message"])
+                        _mark_run_failed(sess, r, "run did not start in time and never received a sidecar job id")
                         sess.commit()
-                yield f"data: {json.dumps({'type': 'done', 'exit_code': None})}\n\n"
+                yield f"data: {json.dumps({'type': 'error', 'message': 'Run did not start in time'})}\n\n"
                 return
+
+            # Stream from sidecar
+            async for event in runner_svc.stream_output(effective_sidecar_id):
+                yield f"data: {json.dumps(event)}\n\n"
+
+                if event["type"] == "chunk":
+                    with SessionLocal() as sess:
+                        r = sess.get(PlaybookRun, run_id)
+                        if r:
+                            r.output = (r.output or "") + event["text"]
+                            sess.commit()
+
+                elif event["type"] == "done":
+                    exit_code = event.get("exit_code")
+                    final_status = PlaybookRunStatus.success if exit_code == 0 else PlaybookRunStatus.failed
+                    with SessionLocal() as sess:
+                        r = sess.get(PlaybookRun, run_id)
+                        if r:
+                            r.status = final_status
+                            r.exit_code = exit_code
+                            r.finished_at = datetime.now(timezone.utc)
+                            sess.commit()
+                    return
+
+                elif event["type"] == "orphaned":
+                    with SessionLocal() as sess:
+                        r = sess.get(PlaybookRun, run_id)
+                        if r and r.status in (PlaybookRunStatus.pending, PlaybookRunStatus.running):
+                            _mark_run_failed(sess, r, event["message"])
+                            sess.commit()
+                    yield f"data: {json.dumps({'type': 'done', 'exit_code': None})}\n\n"
+                    return
+        except Exception:
+            log.exception("Unexpected error streaming playbook run %d", run_id)
+            yield f"data: {json.dumps({'type': 'error', 'message': 'An unexpected error occurred'})}\n\n"
 
     return StreamingResponse(
         generate(),
