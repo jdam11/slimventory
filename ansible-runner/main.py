@@ -178,7 +178,12 @@ def start_run(body: RunRequest):
             inv_path = inv_f.name
         cmd += ["-i", inv_path]
     elif body.inventory_type == "file" and body.inventory:
-        cmd += ["-i", body.inventory]
+        if os.path.isabs(body.inventory):
+            raise HTTPException(status_code=400, detail="inventory must be a relative path")
+        real_inv = os.path.realpath(os.path.join(real_repo, body.inventory))
+        if not real_inv.startswith(real_repo + os.sep):
+            raise HTTPException(status_code=400, detail="inventory escapes the repo directory")
+        cmd += ["-i", real_inv]
 
     if body.extra_vars:
         cmd += ["-e", json.dumps(body.extra_vars)]

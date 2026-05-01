@@ -8,8 +8,8 @@
   {
     "rule": "py/command-line-injection",
     "file": "ansible-runner/main.py",
-    "line": 214,
-    "reason": "List-form Popen with shell=False; real_playbook and real_repo are realpath-validated against REPOS_BASE."
+    "line": 219,
+    "reason": "List-form Popen with shell=False; real_playbook and real_repo are realpath-validated against REPOS_BASE; body.inventory is realpath-validated to stay within real_repo."
   },
   {
     "rule": "py/log-injection",
@@ -38,7 +38,7 @@
   {
     "rule": "py/log-injection",
     "file": "ansible-runner/main.py",
-    "line": 209,
+    "line": 214,
     "reason": "Path is validated by _validate_paths + realpath before reaching this log call."
   },
   {
@@ -86,7 +86,7 @@
   {
     "rule": "py/empty-except",
     "file": "ansible-runner/main.py",
-    "line": 294,
+    "line": 299,
     "reason": "OSError on process termination during cleanup \u2014 best-effort teardown."
   },
   {
