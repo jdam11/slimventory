@@ -111,7 +111,7 @@ def _cleanup_job_later(job_id: str) -> None:
 
 def _ensure_known_hosts_storage() -> None:
     os.makedirs(KNOWN_HOSTS_DIR, exist_ok=True)
-    os.chmod(KNOWN_HOSTS_DIR, 0o700)
+    os.chmod(KNOWN_HOSTS_DIR, 0o700)  # nosemgrep: python.lang.security.audit.insecure-file-permissions.insecure-file-permissions
     if not os.path.exists(ANSIBLE_KNOWN_HOSTS_FILE):
         with open(ANSIBLE_KNOWN_HOSTS_FILE, "a", encoding="utf-8"):
             pass
