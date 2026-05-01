@@ -113,7 +113,7 @@ def main():
                 f"({len(lines)} lines) — update suppressions.json"
             )
         elif not lines[current_line - 1].strip():
-            suggestion = f" (suggested new line: {expected})" if shift else ""
+            suggestion = f" (suggested new line: {expected})" if expected != current_line else ""
             errors.append(
                 f"  {file_path}:{current_line} ({rule}): now points to a blank line"
                 f"{suggestion} — update suppressions.json"
