@@ -1,6 +1,6 @@
 FROM python:3.13.3-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
         git \
         openssh-client \
         ansible \
