@@ -5,8 +5,6 @@ Covers:
 - Integration tests: creating secret fields masks values in API responses
 - Ansible export decrypts transparently
 """
-import pytest
-
 from app.services.field_encryption import (
     SENSITIVE_KEYWORDS,
     decrypt_field_value,

@@ -157,7 +157,7 @@ def sync_git_repo(
         count = sync_repo(db, repo.id)
     except Exception as exc:
         log.error("sync failed for repo %d: %s", repo_id, exc)
-        raise HTTPException(status_code=500, detail=f"Sync failed: {exc}") from exc
+        raise HTTPException(status_code=500, detail="Sync failed") from exc
 
     return GitRepoSyncResult(
         repo_id=repo_id,

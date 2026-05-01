@@ -40,7 +40,7 @@ interface Props {
 
 export default function AppImportModal({ repo, open, onClose, onImported }: Props) {
   const [step, setStep] = useState<"preview" | "confirm">("preview");
-  const [preview, setPreview] = useState<AppImportPreview | null>(null);
+  const [, setPreview] = useState<AppImportPreview | null>(null);
   const [appName, setAppName] = useState("");
   const [fields, setFields] = useState<EditableField[]>([]);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -66,13 +66,6 @@ export default function AppImportModal({ repo, open, onClose, onImported }: Prop
       setPreviewError(msg ?? "Failed to parse repository.");
     },
   });
-
-  function handleOpen() {
-    setStep("preview");
-    setPreview(null);
-    setPreviewError(null);
-    previewMutation.mutate();
-  }
 
   async function handleImport() {
     if (!appName.trim()) {

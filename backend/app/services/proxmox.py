@@ -89,7 +89,7 @@ class ProxmoxClient:
             headers["Content-Type"] = "application/x-www-form-urlencoded"
 
         req = request.Request(f"{self.base_url}{path}", method=method, headers=headers, data=body)
-        with request.urlopen(req, context=self._ssl_context(), timeout=self.timeout) as resp:  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
+        with request.urlopen(req, context=self._ssl_context(), timeout=self.timeout) as resp:  # nosemgrep
             payload = json.loads(resp.read().decode("utf-8"))
             return payload.get("data", {})
 

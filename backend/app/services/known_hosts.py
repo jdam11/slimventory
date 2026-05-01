@@ -16,7 +16,7 @@ from app.services.inventory_builder import resolve_host_ssh_aliases
 
 def ensure_known_hosts_storage() -> None:
     settings.ssh_known_hosts_dir_path.mkdir(parents=True, exist_ok=True)
-    os.chmod(settings.ssh_known_hosts_dir_path, 0o700)  # nosemgrep: python.lang.security.audit.insecure-file-permissions.insecure-file-permissions
+    os.chmod(settings.ssh_known_hosts_dir_path, 0o700)  # nosemgrep
     for path in (settings.ssh_ansible_known_hosts_path, settings.ssh_git_known_hosts_path):
         path.touch(exist_ok=True)
         os.chmod(path, 0o600)

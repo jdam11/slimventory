@@ -27,6 +27,7 @@ lint:
 		-e ADMIN_PASSWORD=admintest1 \
 		-e READONLY_PASSWORD=readonlytest1 \
 		-e UV_CACHE_DIR=/tmp/uv-cache \
+		-v "$(CURDIR)/backend/app:/app/app:ro" \
 		backend \
 		-c "uv sync --extra dev && ruff check app/"
 

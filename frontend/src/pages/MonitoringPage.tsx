@@ -22,7 +22,6 @@ import {
   CloudServerOutlined,
   DatabaseOutlined,
   LineChartOutlined,
-  ThunderboltOutlined,
   UnorderedListOutlined,
   WarningOutlined,
 } from "@ant-design/icons";

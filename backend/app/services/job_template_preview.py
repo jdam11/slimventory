@@ -539,7 +539,4 @@ def get_or_refresh_job_template_preview(db: Session, template_id: int, force: bo
         cache.generated_at = datetime.now(timezone.utc)
         db.commit()
         db.refresh(cache)
-    elif cache.preview_json:
-        preview_payload = cache.preview_json
-
     return JobTemplatePreviewRead.model_validate(cache.preview_json)
