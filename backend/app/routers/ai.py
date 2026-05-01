@@ -1,6 +1,9 @@
 import json
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+
+log = logging.getLogger(__name__)
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -355,8 +358,9 @@ async def stream_prompt_assist(
         try:
             async for chunk in stream_provider_response(provider, model=model, prompt_messages=prompt_messages):
                 yield f"data: {json.dumps({'type': 'chunk', 'text': chunk})}\n\n"
-        except Exception as exc:  # noqa: BLE001
-            yield f"data: {json.dumps({'type': 'error', 'message': str(exc)})}\n\n"
+        except Exception:  # noqa: BLE001
+            log.exception("Error in prompt assist stream")
+            yield f"data: {json.dumps({'type': 'error', 'message': 'An unexpected error occurred'})}\n\n"
             return
         yield f"data: {json.dumps({'type': 'message_complete'})}\n\n"
 
@@ -594,8 +598,9 @@ async def stream_chat(
                 user_message=body.message,
                 page_context=body.page_context,
             )
-        except Exception as exc:  # noqa: BLE001
-            yield f"data: {json.dumps({'type': 'error', 'message': str(exc)})}\n\n"
+        except Exception:  # noqa: BLE001
+            log.exception("Error routing manager response")
+            yield f"data: {json.dumps({'type': 'error', 'message': 'An unexpected error occurred'})}\n\n"
             return
 
         if mode == "direct":
@@ -672,8 +677,9 @@ async def stream_chat(
             ):
                 full_text += chunk
                 yield f"data: {json.dumps({'type': 'chunk', 'text': chunk})}\n\n"
-        except Exception as exc:  # noqa: BLE001
-            yield f"data: {json.dumps({'type': 'error', 'message': str(exc)})}\n\n"
+        except Exception:  # noqa: BLE001
+            log.exception("Error streaming specialist response")
+            yield f"data: {json.dumps({'type': 'error', 'message': 'An unexpected error occurred'})}\n\n"
             return
 
         clean_text, action = _extract_action(full_text)

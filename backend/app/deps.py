@@ -2,7 +2,7 @@ from typing import Optional
 
 from fastapi import Cookie, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError
+from jwt.exceptions import InvalidTokenError as JWTError
 from sqlalchemy.orm import Session
 
 from .audit import log_token_rejected

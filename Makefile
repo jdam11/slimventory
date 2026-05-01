@@ -13,6 +13,7 @@ test:
 		-e ADMIN_PASSWORD=admintest1 \
 		-e READONLY_PASSWORD=readonlytest1 \
 		-e UV_CACHE_DIR=/tmp/uv-cache \
+		-v "$(CURDIR)/backend/tests:/app/tests:ro" \
 		backend \
 		-c "uv sync --extra test && python -m pytest tests/ -v"
 

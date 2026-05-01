@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
+
+log = logging.getLogger(__name__)
 
 from apscheduler.triggers.cron import CronTrigger
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -232,7 +235,6 @@ def update_credential(
         item.encrypted_token_secret = None
         item.token_id = None
 
-    # Validate auth fields are present when activating
     if item.is_active:
         if item.auth_type == "token" and (not item.token_id or not item.encrypted_token_secret):
             raise HTTPException(
@@ -309,8 +311,9 @@ def import_credentials(
             db.flush()
             existing_names.add(item.name)
             created += 1
-        except Exception as exc:  # noqa: BLE001
-            errors.append({"id": 0, "detail": f"{item.name}: {exc}"})
+        except Exception:  # noqa: BLE001
+            log.exception("Failed to import credential %r", item.name)
+            errors.append({"id": 0, "detail": f"{item.name}: import failed"})
 
     db.commit()
     log_credentials_imported(request, admin.username, created, skipped)
@@ -469,9 +472,10 @@ def bulk_promote_pending(
         except HTTPException as exc:
             db.rollback()
             errors.append({"id": pending_id, "detail": str(exc.detail)})
-        except Exception as exc:  # noqa: BLE001
+        except Exception:  # noqa: BLE001
             db.rollback()
-            errors.append({"id": pending_id, "detail": f"unexpected error: {exc}"})
+            log.exception("Failed to promote pending host %d", pending_id)
+            errors.append({"id": pending_id, "detail": "unexpected error promoting host"})
 
     return {
         "requested": len(body.ids),
@@ -516,9 +520,10 @@ def bulk_dismiss_pending(
             item.reviewed_at = datetime.now(timezone.utc)
             db.commit()
             succeeded_ids.append(pending_id)
-        except Exception as exc:  # noqa: BLE001
+        except Exception:  # noqa: BLE001
             db.rollback()
-            errors.append({"id": pending_id, "detail": f"unexpected error: {exc}"})
+            log.exception("Failed to dismiss pending host %d", pending_id)
+            errors.append({"id": pending_id, "detail": "unexpected error dismissing host"})
 
     return {
         "requested": len(body.ids),

@@ -125,7 +125,6 @@ def update_repo(
     ):
         raise HTTPException(status_code=404, detail="git credential not found")
 
-    # Apply plain fields
     for field in ("name", "url", "branch", "repo_type", "auth_type", "credential_id", "https_username"):
         if field in data:
             setattr(repo, field, data[field])
@@ -177,7 +176,6 @@ def preview_import(
     repo = get_or_404(db, GitRepo, repo_id)
     repo_path = get_repo_path(repo.id)
 
-    # Clone if not yet synced
     if not (repo_path / ".git").exists():
         try:
             clone_or_pull_repo(repo)
@@ -296,7 +294,6 @@ def import_roles(
         except Exception as exc:
             raise HTTPException(status_code=500, detail=f"Could not clone repo: {exc}") from exc
 
-    # Build a lookup of discovered roles so we can get defaults per name
     try:
         discovered = {r["name"]: r for r in discover_ansible_roles(repo_path)}
     except Exception as exc:

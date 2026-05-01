@@ -29,6 +29,7 @@ from pydantic import BaseModel
 JOB_RETENTION_SECONDS = 300
 KNOWN_HOSTS_DIR = "/known_hosts"
 ANSIBLE_KNOWN_HOSTS_FILE = f"{KNOWN_HOSTS_DIR}/ansible_known_hosts"
+REPOS_BASE = os.path.realpath("/repos")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("ansible-runner")
@@ -117,6 +118,18 @@ def _ensure_known_hosts_storage() -> None:
     os.chmod(ANSIBLE_KNOWN_HOSTS_FILE, 0o600)
 
 
+def _validate_paths(repo_path: str, playbook_path: str) -> None:
+    """Raise HTTPException if either path escapes the allowed repos tree."""
+    real_repo = os.path.realpath(repo_path)
+    if not real_repo.startswith(REPOS_BASE + os.sep) and real_repo != REPOS_BASE:
+        raise HTTPException(status_code=400, detail="repo_path is outside the allowed repos directory")
+    if os.path.isabs(playbook_path):
+        raise HTTPException(status_code=400, detail="playbook_path must be a relative path")
+    real_playbook = os.path.realpath(os.path.join(real_repo, playbook_path))
+    if not real_playbook.startswith(real_repo + os.sep):
+        raise HTTPException(status_code=400, detail="playbook_path escapes the repo directory")
+
+
 def _write_temp_secret_file(prefix: str, suffix: str, content: str) -> str:
     fd, path = tempfile.mkstemp(prefix=prefix, suffix=suffix)
     try:
@@ -139,6 +152,7 @@ def health():
 
 @app.post("/run", status_code=202)
 def start_run(body: RunRequest):
+    _validate_paths(body.repo_path, body.playbook_path)
     _ensure_known_hosts_storage()
     job_id = str(uuid4())
     output_path = f"/tmp/run_{job_id}.txt"
@@ -149,7 +163,6 @@ def start_run(body: RunRequest):
     cmd: List[str] = ["ansible-playbook", body.playbook_path]
 
     if body.inventory_type == "string" and body.inventory:
-        # Write the inventory string to a temp file
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".yml", prefix=f"inv_{job_id}_", delete=False
         ) as inv_f:
@@ -187,20 +200,8 @@ def start_run(body: RunRequest):
 
     log.info("job=%s cmd=%s cwd=%s", job_id, cmd, body.repo_path)
 
-    # Validate that repo_path exists and is a directory to avoid arbitrary execution
     if not os.path.isdir(body.repo_path):
-        _cleanup_job(
-            Job(
-                process=None,  # type: ignore[arg-type]
-                output_path=output_path,
-                output_file=None,
-                inv_path=inv_path,
-                kerberos_config_path=kerberos_config_path,
-                vault_password_file=vault_password_file,
-                status="done",
-            )
-        )
-        raise HTTPException(status_code=400, detail=f"repo_path does not exist: {body.repo_path}")
+        raise HTTPException(status_code=400, detail="repo_path does not exist or is not a directory")
 
     out_f = open(output_path, "ab")
     try:

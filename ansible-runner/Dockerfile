@@ -1,4 +1,4 @@
-FROM python:3.13.3-slim
+FROM python:3.14.4-slim
 
 RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
         git \

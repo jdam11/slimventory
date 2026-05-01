@@ -8,6 +8,8 @@
 
 ---
 
+> **Disclaimer:** AI tools were used to help build the frontend and assist with development and debugging. All code was reviewed by the project maintainer before release.
+
 ## Features
 
 - **Full CRUD API** for hosts, VLANs, roles, apps, datastores, domains, K3s clusters, and more
@@ -352,15 +354,9 @@ All backup endpoints require admin access.
 
 ## Security
 
-### AI and deployment disclaimer
-
-AI tools were used to help build the frontend and assist with development and debugging. All code was reviewed by the project maintainer before release.
+### Deployment disclaimer
 
 Although safety precautions have been taken, SLIM is intended for internal infrastructure use. Do not expose it directly to the public internet or publish the app containers directly on your LAN. For HTTPS/SSL access, run SLIM behind a reverse proxy on the same Docker host and expose only the proxy.
-
-### Repository change control
-
-Changes to the public GitHub repository require two separate GitHub users with two-factor authentication enabled. One authenticated user publishes the proposed change to a release branch, and a different authenticated user must review and approve the pull request before it can merge. Protected branch rules prevent direct pushes and force pushes to `main`, reducing the risk that one stolen token or compromised account can edit the protected public repository alone.
 
 ### Headers
 

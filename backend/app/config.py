@@ -15,7 +15,6 @@ _READONLY_PASSWORD_PLACEHOLDER = "replace-with-strong-readonly-password"
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    # Database
     DB_HOST: str = "db"
     DB_PORT: int = 3306
     DB_USER: str = "slim_user"
@@ -31,7 +30,6 @@ class Settings(BaseSettings):
             f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}?charset=utf8mb4"
         )
 
-    # JWT
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
@@ -49,12 +47,10 @@ class Settings(BaseSettings):
             raise ValueError("SECRET_KEY must be at least 32 characters long")
         return v
 
-    # Cookies
     # Set to True when the app is behind an HTTPS reverse proxy so the browser
     # will only transmit the session cookie over encrypted connections.
     SECURE_COOKIES: bool = False
 
-    # Bootstrap users
     ADMIN_USERNAME: str = "admin"
     ADMIN_PASSWORD: str
     READONLY_USERNAME: str = "viewer"
@@ -76,10 +72,8 @@ class Settings(BaseSettings):
             )
         return v
 
-    # CORS
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
 
-    # Testing
     TESTING: bool = False
 
     # Trusted reverse-proxy CIDRs (comma-separated).
@@ -91,7 +85,6 @@ class Settings(BaseSettings):
     def TRUSTED_PROXY_CIDRS(self) -> list[str]:
         return [c.strip() for c in self.TRUSTED_PROXIES.split(",") if c.strip()]
 
-    # Logging
     LOG_LEVEL: str = "INFO"
 
     @field_validator("LOG_LEVEL")
@@ -109,11 +102,9 @@ class Settings(BaseSettings):
     # Leave unset to disable script-mode access; normal bearer/cookie auth always works.
     ANSIBLE_INVENTORY_TOKEN: Optional[str] = None
 
-    # Backup
     BACKUP_DIR: str = "/backups"
     BACKUP_SCHEDULER_JOB_ID: str = "db-backup-job"
 
-    # Proxmox sync
     PROXMOX_ENCRYPTION_KEY: Optional[str] = None
     PROXMOX_SCHEDULER_JOB_ID: str = "proxmox-sync-job"
     PROXMOX_SYNC_TIMEOUT_SECONDS: int = 20
@@ -123,9 +114,7 @@ class Settings(BaseSettings):
     PROXMOX_DEFAULT_ROLE_ID: Optional[int] = None
     UNIFI_TIMEOUT_SECONDS: int = 20
 
-    # Ansible runner sidecar
     ANSIBLE_RUNNER_URL: str = "http://ansible-runner:8001"
-    # Path to the shared volume where git repos are cloned
     REPOS_PATH: str = "/repos"
     SSH_KNOWN_HOSTS_DIR: str = "/known_hosts"
     SSH_ANSIBLE_KNOWN_HOSTS_FILE: str = "/known_hosts/ansible_known_hosts"
@@ -137,7 +126,6 @@ class Settings(BaseSettings):
     DEFAULT_APP_REPO_URL: str = "https://github.com/tailscale-dev/ScaleTail"
     DEFAULT_APP_REPO_NAME: str = "ScaleTail"
 
-    # Monitoring integrations
     MONITORING_PROMETHEUS_URL: Optional[str] = None
     MONITORING_LOKI_URL: Optional[str] = None
     MONITORING_TIMEOUT_SECONDS: int = 10

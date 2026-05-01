@@ -1,5 +1,5 @@
 # Stage 1 — build
-FROM node:20.19-alpine AS builder
+FROM node:25-alpine AS builder
 WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci
@@ -7,7 +7,7 @@ COPY . .
 RUN npm run build
 
 # Stage 2 — serve with nginx
-FROM nginx:1.27-alpine
+FROM nginx:1.30-alpine
 RUN apk update --no-cache && apk upgrade --no-cache && rm -rf /var/cache/apk/*
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx-main.conf /etc/nginx/nginx.conf
