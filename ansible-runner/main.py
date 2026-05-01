@@ -15,6 +15,7 @@ GET  /health              – Liveness probe
 import json
 import logging
 import os
+import re
 import subprocess
 import tempfile
 import threading
@@ -30,6 +31,19 @@ JOB_RETENTION_SECONDS = 300
 KNOWN_HOSTS_DIR = "/known_hosts"
 ANSIBLE_KNOWN_HOSTS_FILE = f"{KNOWN_HOSTS_DIR}/ansible_known_hosts"
 REPOS_BASE = os.path.realpath("/repos")
+
+# Keys that must not be overridden by caller-supplied env_vars because they
+# control security-critical Ansible behaviour or loader paths.
+_ENV_VARS_BLOCKLIST = frozenset({
+    "ANSIBLE_HOST_KEY_CHECKING",
+    "ANSIBLE_SSH_ARGS",
+    "LD_PRELOAD",
+    "LD_LIBRARY_PATH",
+    "PATH",
+    "PYTHONPATH",
+    "ANSIBLE_ROLES_PATH",
+    "ANSIBLE_COLLECTIONS_PATHS",
+})
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("ansible-runner")
@@ -176,9 +190,15 @@ def start_run(body: RunRequest):
         ) as inv_f:
             inv_f.write(body.inventory)
             inv_path = inv_f.name
+        os.chmod(inv_path, 0o600)
         cmd += ["-i", inv_path]
     elif body.inventory_type == "file" and body.inventory:
-        cmd += ["-i", body.inventory]
+        if os.path.isabs(body.inventory):
+            raise HTTPException(status_code=400, detail="inventory must be a relative path")
+        real_inv = os.path.realpath(os.path.join(real_repo, body.inventory))
+        if not real_inv.startswith(real_repo + os.sep):
+            raise HTTPException(status_code=400, detail="inventory escapes the repo directory")
+        cmd += ["-i", real_inv]
 
     if body.extra_vars:
         cmd += ["-e", json.dumps(body.extra_vars)]
@@ -194,7 +214,8 @@ def start_run(body: RunRequest):
         f"-o StrictHostKeyChecking=accept-new -o UserKnownHostsFile={ANSIBLE_KNOWN_HOSTS_FILE} -o HashKnownHosts=yes",
     )
     if body.env_vars:
-        env.update(body.env_vars)
+        filtered = {k: v for k, v in body.env_vars.items() if k.upper() not in _ENV_VARS_BLOCKLIST}
+        env.update(filtered)
     if body.kerberos_config:
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".conf", prefix=f"krb5_{job_id}_", delete=False
@@ -204,6 +225,8 @@ def start_run(body: RunRequest):
         os.chmod(kerberos_config_path, 0o600)
         env["KRB5_CONFIG"] = kerberos_config_path
     if body.kerberos_ccache_name:
+        if not re.fullmatch(r"FILE:/tmp/krb5cc_[A-Za-z0-9._-]+", body.kerberos_ccache_name):
+            raise HTTPException(status_code=400, detail="kerberos_ccache_name must be FILE:/tmp/krb5cc_<id>")
         env["KRB5CCNAME"] = body.kerberos_ccache_name
 
     log.info("job=%s cmd=%s cwd=%s", job_id, cmd, real_repo)

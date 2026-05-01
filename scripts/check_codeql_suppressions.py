@@ -36,6 +36,40 @@ def lines_added_before(file_path, target_line):
     return delta
 
 
+def head_suppressions():
+    """Return suppressions from HEAD as a list of dicts."""
+    result = subprocess.run(
+        ["git", "show", "HEAD:.codeql/suppressions.json"],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        return []
+    return json.loads(result.stdout)
+
+
+def find_old_line(old_entries, rule, file_path, current_reason):
+    """Find the best-matching old line for a suppression entry.
+
+    Strategy (in order):
+    1. Single candidate for (rule, file) — unambiguous, return it.
+    2. Multiple candidates — match on reason (exact). Return only if exactly
+       one candidate matches; otherwise the pairing is ambiguous and None is
+       returned so the entry is treated as new (no drift check).
+    """
+    candidates = [e for e in old_entries if e["rule"] == rule and e["file"] == file_path]
+    if not candidates:
+        return None
+    if len(candidates) == 1:
+        return candidates[0]["line"]
+    # Multiple entries for same rule+file: use reason as a stable discriminator.
+    if current_reason:
+        reason_matches = [e for e in candidates if e.get("reason") == current_reason]
+        if len(reason_matches) == 1:
+            return reason_matches[0]["line"]
+    # Ambiguous — can't reliably identify the corresponding old entry.
+    return None
+
+
 def main():
     root = Path(
         subprocess.run(
@@ -51,13 +85,14 @@ def main():
     with suppressions_path.open() as f:
         suppressions = json.load(f)
 
+    old_entries = head_suppressions()
     modified = staged_files()
     errors = []
 
     for entry in suppressions:
         file_path = entry["file"]
         rule = entry["rule"]
-        line_num = entry["line"]
+        current_line = entry["line"]
 
         abs_path = root / file_path
         if not abs_path.exists():
@@ -69,25 +104,31 @@ def main():
 
         lines = abs_path.read_text().splitlines()
 
-        # Detect net line shift in the staged diff
-        shift = lines_added_before(file_path, line_num)
-        suggested = line_num + shift
+        # Use the old committed line as the shift basis so that co-staged
+        # suppressions.json updates are not double-counted.
+        old_line = find_old_line(old_entries, rule, file_path, entry.get("reason", ""))
+        if old_line is not None:
+            shift = lines_added_before(file_path, old_line)
+            expected = old_line + shift
+        else:
+            shift = 0
+            expected = current_line  # new entry; no drift check applies
 
-        if line_num > len(lines):
+        if current_line > len(lines):
             errors.append(
-                f"  {file_path}:{line_num} ({rule}): past end of file "
+                f"  {file_path}:{current_line} ({rule}): past end of file "
                 f"({len(lines)} lines) — update suppressions.json"
             )
-        elif not lines[line_num - 1].strip():
-            suggestion = f" (suggested new line: {suggested})" if shift else ""
+        elif not lines[current_line - 1].strip():
+            suggestion = f" (suggested new line: {expected})" if expected != current_line else ""
             errors.append(
-                f"  {file_path}:{line_num} ({rule}): now points to a blank line"
+                f"  {file_path}:{current_line} ({rule}): now points to a blank line"
                 f"{suggestion} — update suppressions.json"
             )
-        elif shift:
+        elif current_line != expected:
             errors.append(
-                f"  {file_path}:{line_num} ({rule}): staged diff adds {shift:+d} lines "
-                f"before this suppression — verify line number, expected {suggested}"
+                f"  {file_path}:{current_line} ({rule}): expected {expected} "
+                f"(old={old_line}, shift={shift:+d}) — update suppressions.json"
             )
 
     if errors:
