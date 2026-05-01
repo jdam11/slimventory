@@ -100,10 +100,12 @@ def main():
         # Use the old committed line as the shift basis so that co-staged
         # suppressions.json updates are not double-counted.
         old_line = find_old_line(old_entries, rule, file_path, current_line)
-        if old_line is None:
-            old_line = current_line  # new entry; treat as no shift expected
-        shift = lines_added_before(file_path, old_line)
-        expected = old_line + shift
+        if old_line is not None:
+            shift = lines_added_before(file_path, old_line)
+            expected = old_line + shift
+        else:
+            shift = 0
+            expected = current_line  # new entry; no drift check applies
 
         if current_line > len(lines):
             errors.append(
