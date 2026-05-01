@@ -218,6 +218,9 @@ jobs:
     name: CodeQL
     if: ${{ github.server_url == 'https://github.com' }}
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      security-events: write
 
     steps:
       - name: Check out repository
@@ -265,47 +268,44 @@ jobs:
             --output=/tmp/js-results.sarif \
             --ram=4096
 
-      - name: Upload SARIF results
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: codeql-results
-          path: |
-            /tmp/python-results.sarif
-            /tmp/js-results.sarif
-          retention-days: 90
-
-      - name: Check for findings
+      - name: Apply suppressions and check for findings
         run: |
           python3 - <<'EOF'
           import json, sys
 
           with open(".codeql/suppressions.json") as sf:
-              SUPPRESSED = {(e["rule"], e["file"], e["line"]) for e in json.load(sf)}
+              suppression_list = json.load(sf)
 
-          def is_suppressed(rule, uri, line):
-              return any(
-                  rule == r and uri.endswith(f) and line == ln
-                  for r, f, ln in SUPPRESSED
+          SUPPRESSED = {(e["rule"], e["file"], e["line"]): e["reason"] for e in suppression_list}
+
+          def match(rule, uri, line):
+              return next(
+                  ((r, f, ln) for (r, f, ln) in SUPPRESSED if rule == r and uri.endswith(f) and line == ln),
+                  None
               )
 
-          total = 0
+          total_unsuppressed = 0
           for path, label in [("/tmp/python-results.sarif", "Python"), ("/tmp/js-results.sarif", "JS/TS")]:
               with open(path) as f:
                   data = json.load(f)
-              all_results = [r for run in data.get("runs", []) for r in run.get("results", [])]
-              results = []
-              for r in all_results:
-                  rule = r.get("ruleId", "unknown")
-                  locs = r.get("locations", [{}])
-                  loc = locs[0].get("physicalLocation", {}) if locs else {}
-                  uri = loc.get("artifactLocation", {}).get("uri", "")
-                  line = loc.get("region", {}).get("startLine")
-                  if not is_suppressed(rule, uri, line):
-                      results.append(r)
-              if results:
-                  print(f"\n{label}: {len(results)} finding(s)")
-                  for r in results:
+              unsuppressed = []
+              for run in data.get("runs", []):
+                  for r in run.get("results", []):
+                      rule = r.get("ruleId", "unknown")
+                      locs = r.get("locations", [{}])
+                      loc = locs[0].get("physicalLocation", {}) if locs else {}
+                      uri = loc.get("artifactLocation", {}).get("uri", "")
+                      line = loc.get("region", {}).get("startLine")
+                      key = match(rule, uri, line)
+                      if key:
+                          r["suppressions"] = [{"kind": "inSource", "justification": SUPPRESSED[key]}]
+                      else:
+                          unsuppressed.append(r)
+              with open(path, "w") as f:
+                  json.dump(data, f)
+              if unsuppressed:
+                  print(f"\n{label}: {len(unsuppressed)} finding(s)")
+                  for r in unsuppressed:
                       rule = r.get("ruleId", "unknown")
                       msg = r.get("message", {}).get("text", "")
                       locs = r.get("locations", [{}])
@@ -313,14 +313,28 @@ jobs:
                       uri = loc.get("artifactLocation", {}).get("uri", "")
                       line = loc.get("region", {}).get("startLine", "?")
                       print(f"  {rule}: {uri}:{line} — {msg}")
-              total += len(results)
+              total_unsuppressed += len(unsuppressed)
 
-          if total:
-              print(f"\n{total} total finding(s). Fix or suppress before merging.")
+          if total_unsuppressed:
+              print(f"\n{total_unsuppressed} total finding(s). Fix or suppress before merging.")
               sys.exit(1)
           else:
               print("No findings.")
           EOF
+
+      - name: Upload SARIF to GitHub Code Scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@865f5f5c36632f18690a3d569fa0a764f2da0c3e # v3
+        with:
+          sarif_file: /tmp/python-results.sarif
+          category: python
+
+      - name: Upload JS/TS SARIF to GitHub Code Scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@865f5f5c36632f18690a3d569fa0a764f2da0c3e # v3
+        with:
+          sarif_file: /tmp/js-results.sarif
+          category: javascript
 
   repository-security-scan:
     name: Repository Security Scan
