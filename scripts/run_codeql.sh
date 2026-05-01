@@ -68,38 +68,18 @@ echo "CodeQL: analyzing JavaScript/TypeScript..."
     --ram=8192 \
     --quiet
 
-python3 - "${DB_DIR}/python.sarif" "${DB_DIR}/js.sarif" <<'EOF'
+python3 - "${DB_DIR}/python.sarif" "${DB_DIR}/js.sarif" "${REPO_ROOT}/.codeql/suppressions.json" <<'EOF'
 import json, sys
 
-SUPPRESSED = {
-    ("py/path-injection",          "ansible-runner/main.py"),
-    ("py/command-line-injection",  "ansible-runner/main.py"),
-    ("py/log-injection",           "backend/app/routers/admin.py"),
-    ("py/log-injection",           "backend/app/audit.py"),
-    ("py/log-injection",           "backend/app/routers/git_repos.py"),
-    ("py/log-injection",           "ansible-runner/main.py"),
-    ("py/log-injection",           "backend/app/routers/playbook_runs.py"),
-    ("py/log-injection",           "backend/app/services/proxmox.py"),
-    ("py/log-injection",           "backend/app/routers/proxmox.py"),
-    ("py/stack-trace-exposure",    "backend/app/routers/ai.py"),
-    ("py/stack-trace-exposure",    "backend/app/routers/proxmox.py"),
-    ("py/stack-trace-exposure",    "backend/app/routers/playbook_runs.py"),
-    ("py/clear-text-logging-sensitive-data", "backend/seed.py"),
-    ("py/empty-except", "backend/app/services/git_service.py"),
-    ("py/empty-except", "ansible-runner/main.py"),
-    ("py/empty-except", "backend/app/services/proxmox.py"),
-    ("py/empty-except", "backend/app/services/vault_service.py"),
-    ("py/unused-global-variable", "backend/alembic/versions/001_first_official_release_baseline.py"),
-    ("py/unused-import",          "backend/tests/conftest.py"),
-    ("py/unused-import",          "backend/alembic/env.py"),
-}
+with open(sys.argv[3]) as sf:
+    SUPPRESSED = {(e["rule"], e["file"], e["line"]) for e in json.load(sf)}
 
-def is_suppressed(rule, uri):
-    return any(rule == r and uri.endswith(u) for r, u in SUPPRESSED)
+def is_suppressed(rule, uri, line):
+    return any(rule == r and uri.endswith(f) and line == ln for r, f, ln in SUPPRESSED)
 
 total = 0
 labels = {"python.sarif": "Python", "js.sarif": "JS/TS"}
-for path in sys.argv[1:]:
+for path in sys.argv[1:3]:
     label = labels.get(path.rsplit("/", 1)[-1], path)
     with open(path) as f:
         data = json.load(f)
@@ -110,7 +90,8 @@ for path in sys.argv[1:]:
         locs = r.get("locations", [{}])
         loc = locs[0].get("physicalLocation", {}) if locs else {}
         uri = loc.get("artifactLocation", {}).get("uri", "")
-        if not is_suppressed(rule, uri):
+        line = loc.get("region", {}).get("startLine")
+        if not is_suppressed(rule, uri, line):
             results.append(r)
     if results:
         print(f"\n{label}: {len(results)} finding(s)")
