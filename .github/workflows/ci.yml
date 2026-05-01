@@ -214,6 +214,114 @@ jobs:
             --severity HIGH,CRITICAL \
             /scan
 
+  codeql:
+    name: CodeQL
+    if: ${{ github.server_url == 'https://github.com' }}
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+
+      - name: Install CodeQL
+        run: |
+          curl -fsSLo /tmp/codeql.tar.gz \
+            https://github.com/github/codeql-action/releases/download/codeql-bundle-v2.25.2/codeql-bundle-linux64.tar.gz
+          printf '%s  %s\n' \
+            '7e05c89e172f500be8c718d32a355e481bd1b24a85551a2b4c30a7ab00949399' \
+            '/tmp/codeql.tar.gz' | sha256sum -c -
+          tar -xzf /tmp/codeql.tar.gz -C /opt
+          echo "/opt/codeql" >> "$GITHUB_PATH"
+
+      - name: Create Python database
+        run: |
+          codeql database create /tmp/db-python \
+            --language=python \
+            --source-root=. \
+            --overwrite
+
+      - name: Analyze Python
+        run: |
+          codeql database analyze /tmp/db-python \
+            codeql/python-queries:codeql-suites/python-security-and-quality.qls \
+            --format=sarif-latest \
+            --output=/tmp/python-results.sarif \
+            --ram=4096
+
+      - name: Create JavaScript/TypeScript database
+        run: |
+          codeql database create /tmp/db-js \
+            --language=javascript \
+            --source-root=frontend/src \
+            --overwrite
+
+      - name: Analyze JavaScript/TypeScript
+        run: |
+          codeql database analyze /tmp/db-js \
+            codeql/javascript-queries:codeql-suites/javascript-security-and-quality.qls \
+            --format=sarif-latest \
+            --output=/tmp/js-results.sarif \
+            --ram=4096
+
+      - name: Upload SARIF results
+        if: always()
+        uses: actions/upload-artifact@ff15f0306b3f739f7b6fd43fb5d26cd321bd4de5 # v3
+        with:
+          name: codeql-results
+          path: |
+            /tmp/python-results.sarif
+            /tmp/js-results.sarif
+          retention-days: 90
+
+      - name: Check for findings
+        run: |
+          python3 - <<'EOF'
+          import json, sys
+
+          with open(".codeql/suppressions.json") as sf:
+              SUPPRESSED = {(e["rule"], e["file"], e["line"]) for e in json.load(sf)}
+
+          def is_suppressed(rule, uri, line):
+              return any(
+                  rule == r and uri.endswith(f) and line == ln
+                  for r, f, ln in SUPPRESSED
+              )
+
+          total = 0
+          for path, label in [("/tmp/python-results.sarif", "Python"), ("/tmp/js-results.sarif", "JS/TS")]:
+              with open(path) as f:
+                  data = json.load(f)
+              all_results = [r for run in data.get("runs", []) for r in run.get("results", [])]
+              results = []
+              for r in all_results:
+                  rule = r.get("ruleId", "unknown")
+                  locs = r.get("locations", [{}])
+                  loc = locs[0].get("physicalLocation", {}) if locs else {}
+                  uri = loc.get("artifactLocation", {}).get("uri", "")
+                  line = loc.get("region", {}).get("startLine")
+                  if not is_suppressed(rule, uri, line):
+                      results.append(r)
+              if results:
+                  print(f"\n{label}: {len(results)} finding(s)")
+                  for r in results:
+                      rule = r.get("ruleId", "unknown")
+                      msg = r.get("message", {}).get("text", "")
+                      locs = r.get("locations", [{}])
+                      loc = locs[0].get("physicalLocation", {}) if locs else {}
+                      uri = loc.get("artifactLocation", {}).get("uri", "")
+                      line = loc.get("region", {}).get("startLine", "?")
+                      print(f"  {rule}: {uri}:{line} — {msg}")
+              total += len(results)
+
+          if total:
+              print(f"\n{total} total finding(s). Fix or suppress before merging.")
+              sys.exit(1)
+          else:
+              print("No findings.")
+          EOF
+
   repository-security-scan:
     name: Repository Security Scan
     if: ${{ always() && github.server_url == 'https://github.com' }}

@@ -1,0 +1,194 @@
+[
+  {
+    "rule": "py/path-injection",
+    "file": "ansible-runner/main.py",
+    "line": 162,
+    "reason": "real_repo is os.path.realpath() of user input, bounds-checked against REPOS_BASE. CodeQL does not model realpath+startswith as a path sanitizer."
+  },
+  {
+    "rule": "py/command-line-injection",
+    "file": "ansible-runner/main.py",
+    "line": 214,
+    "reason": "List-form Popen with shell=False; real_playbook and real_repo are realpath-validated against REPOS_BASE."
+  },
+  {
+    "rule": "py/log-injection",
+    "file": "backend/app/routers/admin.py",
+    "line": 61,
+    "reason": "Log level is validated against an allowlist before being logged."
+  },
+  {
+    "rule": "py/log-injection",
+    "file": "backend/app/audit.py",
+    "line": 52,
+    "reason": "Audit log of authenticated event metadata — values are internally generated."
+  },
+  {
+    "rule": "py/log-injection",
+    "file": "backend/app/audit.py",
+    "line": 109,
+    "reason": "Audit log of authenticated event metadata — values are internally generated."
+  },
+  {
+    "rule": "py/log-injection",
+    "file": "backend/app/routers/git_repos.py",
+    "line": 159,
+    "reason": "Exception message originates from an internal sync operation, not direct user input."
+  },
+  {
+    "rule": "py/log-injection",
+    "file": "ansible-runner/main.py",
+    "line": 209,
+    "reason": "Path is validated by _validate_paths + realpath before reaching this log call."
+  },
+  {
+    "rule": "py/log-injection",
+    "file": "backend/app/routers/playbook_runs.py",
+    "line": 242,
+    "reason": "run_id is an integer path parameter — cannot contain log injection characters."
+  },
+  {
+    "rule": "py/log-injection",
+    "file": "backend/app/services/proxmox.py",
+    "line": 769,
+    "reason": "trigger_source is a system-controlled enum value, not user input."
+  },
+  {
+    "rule": "py/log-injection",
+    "file": "backend/app/routers/proxmox.py",
+    "line": 477,
+    "reason": "pending_id is an integer path parameter."
+  },
+  {
+    "rule": "py/log-injection",
+    "file": "backend/app/routers/proxmox.py",
+    "line": 525,
+    "reason": "pending_id is an integer path parameter."
+  },
+  {
+    "rule": "py/stack-trace-exposure",
+    "file": "backend/app/routers/ai.py",
+    "line": 724,
+    "reason": "AiError is a domain exception with a developer-set message; endpoint is admin-only."
+  },
+  {
+    "rule": "py/empty-except",
+    "file": "ansible-runner/main.py",
+    "line": 82,
+    "reason": "OSError on file/process cleanup — best-effort teardown, must not mask the original error."
+  },
+  {
+    "rule": "py/empty-except",
+    "file": "ansible-runner/main.py",
+    "line": 98,
+    "reason": "OSError on file/process cleanup — best-effort teardown, must not mask the original error."
+  },
+  {
+    "rule": "py/empty-except",
+    "file": "ansible-runner/main.py",
+    "line": 294,
+    "reason": "OSError on process termination during cleanup — best-effort teardown."
+  },
+  {
+    "rule": "py/empty-except",
+    "file": "backend/app/services/git_service.py",
+    "line": 184,
+    "reason": "OSError on temp-file cleanup — intentional silent failure during teardown."
+  },
+  {
+    "rule": "py/empty-except",
+    "file": "backend/app/services/git_service.py",
+    "line": 270,
+    "reason": "Exception on best-effort YAML role metadata parse — invalid files intentionally skipped."
+  },
+  {
+    "rule": "py/empty-except",
+    "file": "backend/app/services/git_service.py",
+    "line": 286,
+    "reason": "Exception on best-effort YAML defaults parse — invalid files intentionally skipped."
+  },
+  {
+    "rule": "py/empty-except",
+    "file": "backend/app/services/proxmox.py",
+    "line": 182,
+    "reason": "ValueError on VLAN tag parse — invalid tokens are intentionally skipped."
+  },
+  {
+    "rule": "py/empty-except",
+    "file": "backend/app/services/proxmox.py",
+    "line": 261,
+    "reason": "ValueError on VLAN tag parse — invalid tokens are intentionally skipped."
+  },
+  {
+    "rule": "py/empty-except",
+    "file": "backend/app/services/vault_service.py",
+    "line": 19,
+    "reason": "OSError unlinking a temp file in a finally block that is already re-raising the original exception."
+  },
+  {
+    "rule": "py/unused-global-variable",
+    "file": "backend/alembic/versions/001_first_official_release_baseline.py",
+    "line": 14,
+    "reason": "Alembic reads revision as a module-level convention, not via normal Python call paths."
+  },
+  {
+    "rule": "py/unused-global-variable",
+    "file": "backend/alembic/versions/001_first_official_release_baseline.py",
+    "line": 15,
+    "reason": "Alembic reads down_revision as a module-level convention."
+  },
+  {
+    "rule": "py/unused-global-variable",
+    "file": "backend/alembic/versions/001_first_official_release_baseline.py",
+    "line": 16,
+    "reason": "Alembic reads branch_labels as a module-level convention."
+  },
+  {
+    "rule": "py/unused-global-variable",
+    "file": "backend/alembic/versions/001_first_official_release_baseline.py",
+    "line": 17,
+    "reason": "Alembic reads depends_on as a module-level convention."
+  },
+  {
+    "rule": "py/unused-import",
+    "file": "backend/alembic/env.py",
+    "line": 14,
+    "reason": "Side-effect import that registers app models with Base for Alembic autogenerate."
+  },
+  {
+    "rule": "py/unused-import",
+    "file": "backend/tests/conftest.py",
+    "line": 26,
+    "reason": "Side-effect import that registers SQLAlchemy models with Base for test schema creation."
+  },
+  {
+    "rule": "py/unused-import",
+    "file": "backend/tests/conftest.py",
+    "line": 28,
+    "reason": "Side-effect import that registers SQLAlchemy models with Base for test schema creation."
+  },
+  {
+    "rule": "py/unused-import",
+    "file": "backend/tests/conftest.py",
+    "line": 29,
+    "reason": "Side-effect import that registers SQLAlchemy models with Base for test schema creation."
+  },
+  {
+    "rule": "py/unused-import",
+    "file": "backend/tests/conftest.py",
+    "line": 30,
+    "reason": "Side-effect import that registers SQLAlchemy models with Base for test schema creation."
+  },
+  {
+    "rule": "py/unused-import",
+    "file": "backend/tests/conftest.py",
+    "line": 31,
+    "reason": "Side-effect import that registers SQLAlchemy models with Base for test schema creation."
+  },
+  {
+    "rule": "py/unused-import",
+    "file": "backend/tests/conftest.py",
+    "line": 32,
+    "reason": "Side-effect import that registers SQLAlchemy models with Base for test schema creation."
+  }
+]
