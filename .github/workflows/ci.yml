@@ -58,7 +58,7 @@ jobs:
     if: ${{ github.server_url == 'https://github.com' }}
     runs-on: ubuntu-24.04
     container:
-      image: python:3.13.13-slim
+      image: python:3.14.4-slim
 
     steps:
       - name: Check out repository
