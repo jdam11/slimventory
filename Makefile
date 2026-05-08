@@ -1,4 +1,4 @@
-.PHONY: dev down test build seed lint hooks-install secrets-scan verify pull publish-public
+.PHONY: dev down test build seed lint hooks-install secrets-scan verify pull publish-public release-up traefik-up caddy-up verify-compose
 
 dev:
 	docker compose up --build
@@ -52,3 +52,19 @@ pull:
 publish-public:
 	@test -n "$(VERSION)" || (echo "Usage: make publish-public VERSION=1.0.0" && exit 1)
 	./scripts/publish-public.sh $(VERSION)
+
+release-up:
+	docker compose -f docker-compose.release.yml up -d
+
+traefik-up:
+	docker compose -f docker-compose.traefik.yml up -d
+
+caddy-up:
+	docker compose -f docker-compose.public.yml up -d
+
+verify-compose:
+	docker compose -f docker-compose.release.yml config -q
+	docker compose -f docker-compose.traefik.yml config -q
+	docker compose -f docker-compose.public.yml config -q
+	docker compose -f docker-compose.gitea-dev.yml config -q
+	docker compose -f docker-compose.yml config -q
