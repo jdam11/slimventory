@@ -68,6 +68,8 @@ docker compose -f docker-compose.release.yml pull
 docker compose -f docker-compose.release.yml up -d
 ```
 
+Production compose files (`docker-compose.release.yml`, `docker-compose.traefik.yml`, `docker-compose.public.yml`) are self-contained and pin every public image by SHA256 digest, so a given release tag deploys bit-for-bit identical containers. For HTTPS, pick the proxy variant directly: `make traefik-up` or `make caddy-up`.
+
 ### Option B — Build from source
 
 ```bash

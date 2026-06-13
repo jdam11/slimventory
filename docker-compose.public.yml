@@ -1,6 +1,108 @@
 services:
+  db:
+    image: mysql:9.7.0@sha256:f0ef1d92fa650fcfa5b85f1d82bb1a56a6dd579bf256b8f8f2a5a0b1b61c8b0b
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME:-slim_db}
+      MYSQL_USER: ${DB_USER:-slim_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./db/02_grants.sh:/docker-entrypoint-initdb.d/02_grants.sh:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root",
+             "--password=${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  backend:
+    image: jdam11/slim-backend:1.0.1@sha256:34b763e295c4de0f02497fe725634473b85c70e3917b90674a09073ffae14f24
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DB_HOST: db
+      DB_PORT: ${DB_PORT:-3306}
+      DB_USER: ${DB_USER:-slim_user}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME:-slim_db}
+      SECRET_KEY: ${SECRET_KEY}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-60}
+      REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-7}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      READONLY_USERNAME: ${READONLY_USERNAME:-viewer}
+      READONLY_PASSWORD: ${READONLY_PASSWORD}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://${PUBLIC_HOST}}
+      SECURE_COOKIES: ${SECURE_COOKIES:-true}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      BACKUP_DIR: ${BACKUP_DIR:-/backups}
+      DEFAULT_APP_REPO_URL: ${DEFAULT_APP_REPO_URL:-https://github.com/tailscale-dev/ScaleTail}
+      DEFAULT_APP_REPO_NAME: ${DEFAULT_APP_REPO_NAME:-ScaleTail}
+      MONITORING_PROMETHEUS_URL: ${MONITORING_PROMETHEUS_URL:-}
+      MONITORING_LOKI_URL: ${MONITORING_LOKI_URL:-}
+      MONITORING_TIMEOUT_SECONDS: ${MONITORING_TIMEOUT_SECONDS:-10}
+      PROXMOX_ENCRYPTION_KEY: ${PROXMOX_ENCRYPTION_KEY:-}
+      PROXMOX_SYNC_TIMEOUT_SECONDS: ${PROXMOX_SYNC_TIMEOUT_SECONDS:-20}
+      ANSIBLE_RUNNER_URL: http://ansible-runner:8001
+      REPOS_PATH: /repos
+    depends_on:
+      db:
+        condition: service_healthy
+      ansible-runner:
+        condition: service_healthy
+    volumes:
+      - ./backups:/backups
+      - repos_data:/repos
+      - known_hosts_data:/known_hosts
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  ansible-runner:
+    image: jdam11/slim-ansible-runner:1.0.1@sha256:a27561d22c6a01fddf4fa0a4e096d8a4cd4a62faad0f652b212f860fbe333493
+    restart: unless-stopped
+    environment:
+      ANSIBLE_HOST_KEY_CHECKING: "True"
+    volumes:
+      - repos_data:/repos
+      - known_hosts_data:/known_hosts
+    expose:
+      - "8001"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  frontend:
+    image: jdam11/slim-frontend:1.0.1@sha256:17fc51593e4406080725ba6c15ec0072ecb90dae33d4c5bc50c3a03d0b8f07c2
+    restart: unless-stopped
+    depends_on:
+      - backend
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8080/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   caddy:
-    image: caddy:2.11.2-alpine
+    image: caddy:2.11.2-alpine@sha256:834468128c7696cec0ceea6172f7d692daf645ae51983ca76e39da54a97c570d
     restart: unless-stopped
     depends_on:
       - frontend
@@ -15,9 +117,9 @@ services:
       - caddy_data:/data
       - caddy_config:/config
 
-  frontend:
-    ports: !override []
-
 volumes:
+  mysql_data:
+  repos_data:
+  known_hosts_data:
   caddy_data:
   caddy_config:

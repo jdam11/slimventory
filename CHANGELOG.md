@@ -34,6 +34,24 @@ Initial public release of SLIM (Simple Lab Inventory Manager).
 - Fernet encryption with HKDF key derivation for backup isolation
 - Comprehensive test suite running on in-memory SQLite
 
+## [1.0.1] - 2026-05-08
+
+### Changed
+
+- **MySQL upgraded from 8.4 LTS to 9.7 LTS** — default database image updated across all compose files
+- **Production compose files are now fully self-contained** — every image is pinned by SHA256 digest; no external overlay files required
+
+### Fixed
+
+- **CVE-2026-42561** — python-multipart bumped to 0.0.27
+
+### Dependencies
+
+- Frontend dependencies updated
+- Python base image updated to 3.14.4
+- Traefik updated to 3.7.0
+- Docker base images updated
+
 ## [1.0.0] - 2026-04-29
 
 ### Added
