@@ -16,13 +16,13 @@
     "@tanstack/react-query": "^5.100.6",
     "@types/js-yaml": "^4.0.9",
     "antd": "^6.0.0",
-    "axios": "^1.15.2",
+    "axios": "^1.17.0",
     "dayjs": "^1.11.20",
     "js-yaml": "^4.1.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",
-    "react-router-dom": "^7.0.0",
+    "react-router-dom": "^7.17.0",
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
