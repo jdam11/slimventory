@@ -16,7 +16,153 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  renovate-supply-chain-gate:
+    name: Renovate Supply-Chain Gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Enforce TeamPCP-style Renovate cooldown and advisory lookup
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_CREATED_AT: ${{ github.event.pull_request.created_at }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          API_URL: https://api.github.com
+          REPOSITORY: ${{ github.repository }}
+          CI_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import datetime as dt
+          import json
+          import os
+          import re
+          import sys
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+
+          event = os.environ.get("EVENT_NAME", "")
+          title = os.environ.get("PR_TITLE", "")
+          head_ref = os.environ.get("PR_HEAD_REF", "")
+          created_at = os.environ.get("PR_CREATED_AT", "")
+          pr_number = os.environ.get("PR_NUMBER", "")
+          repo = os.environ.get("REPOSITORY", "")
+          api_url = os.environ.get("API_URL", "").rstrip("/")
+          token = os.environ.get("CI_TOKEN", "")
+
+          markers = ("renovate/", "chore(deps):", "chore(deps-dev):", "dependency dashboard")
+          combined = f"{title}\n{head_ref}".lower()
+          if event != "pull_request" or not any(marker in combined for marker in markers):
+              print("Not a Renovate/dependency pull request; gate passed.")
+              raise SystemExit(0)
+
+          def api_json(path):
+              if not (api_url and token):
+                  raise RuntimeError("missing API URL or token for pre-checkout PR metadata lookup")
+              req = urllib.request.Request(
+                  f"{api_url}{path}",
+                  headers={"Authorization": f"token {token}", "Accept": "application/json"},
+              )
+              with urllib.request.urlopen(req, timeout=30) as resp:
+                  return json.loads(resp.read().decode("utf-8"))
+
+          paths = []
+          files_unavailable = False
+          try:
+              owner_repo = urllib.parse.quote(repo, safe="/")
+              files = api_json(f"/repos/{owner_repo}/pulls/{urllib.parse.quote(pr_number)}/files")
+              paths = [f.get("filename") or f.get("name") or f.get("path") for f in files if isinstance(f, dict)]
+              paths = [p for p in paths if p]
+          except Exception as exc:
+              print(f"Unable to read PR changed files before checkout: {exc}")
+              files_unavailable = True
+              paths = []
+
+          high_risk_markers = (
+              ".gitea/workflows/", ".github/workflows/", "dockerfile", "docker-compose",
+              "package-lock.json", "pnpm-lock.yaml", "yarn.lock", "uv.lock", "poetry.lock",
+              "pyproject.toml", "requirements", "renovate", "trivy", "semgrep", "codeql",
+              "grype", "docker", "node", "python", "mysql", "nginx", "caddy", "traefik",
+          )
+          high_risk = files_unavailable or any(any(marker in p.lower() for marker in high_risk_markers) for p in paths)
+          required_hours = 72 if high_risk else 24
+
+          if not created_at:
+              print("Renovate/dependency PR is missing created_at metadata; refusing to run PR-controlled checks.")
+              raise SystemExit(1)
+          created = dt.datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+          age_hours = (dt.datetime.now(dt.timezone.utc) - created).total_seconds() / 3600
+          if age_hours < required_hours:
+              remaining = required_hours - age_hours
+              print(f"Renovate/dependency cooldown active: age={age_hours:.1f}h required={required_hours}h remaining={remaining:.1f}h")
+              print("Blocking before checkout/install/scanner execution by design.")
+              raise SystemExit(1)
+
+          dep_name = None
+          dep_version = None
+          for pattern in (
+              r"update dependency (?P<name>\S+) to v?(?P<version>[0-9][^\s,)]+)",
+              r"update (?P<name>\S+) to v?(?P<version>[0-9][^\s,)]+)",
+          ):
+              match = re.search(pattern, title, re.I)
+              if match:
+                  dep_name = match.group("name").strip("`'")
+                  dep_version = match.group("version").strip("`'")
+                  break
+
+          ecosystem = None
+          path_text = "\n".join(paths).lower()
+          if any(p in path_text for p in ("package.json", "package-lock.json", "pnpm-lock.yaml", "yarn.lock")):
+              ecosystem = "npm"
+          elif any(p in path_text for p in ("pyproject.toml", "uv.lock", "requirements", "poetry.lock")):
+              ecosystem = "PyPI"
+          elif "go.mod" in path_text or "go.sum" in path_text:
+              ecosystem = "Go"
+          elif "pom.xml" in path_text or "build.gradle" in path_text:
+              ecosystem = "Maven"
+
+          advisory_checked = False
+          if dep_name and dep_version and ecosystem:
+              payload = json.dumps({"version": dep_version, "package": {"name": dep_name, "ecosystem": ecosystem}}).encode("utf-8")
+              req = urllib.request.Request(
+                  "https://api.osv.dev/v1/query",
+                  data=payload,
+                  headers={"Content-Type": "application/json", "Accept": "application/json"},
+                  method="POST",
+              )
+              try:
+                  with urllib.request.urlopen(req, timeout=30) as resp:
+                      osv = json.loads(resp.read().decode("utf-8"))
+                  advisory_checked = True
+                  vulns = osv.get("vulns") or []
+                  if vulns:
+                      print(f"OSV reports {len(vulns)} advisory record(s) for {ecosystem}:{dep_name}@{dep_version}; blocking for review.")
+                      for vuln in vulns[:10]:
+                          print(f"- {vuln.get('id')}: {vuln.get('summary', 'no summary')}")
+                      raise SystemExit(1)
+                  print(f"OSV advisory lookup passed for {ecosystem}:{dep_name}@{dep_version}.")
+              except urllib.error.HTTPError as exc:
+                  print(f"OSV lookup failed: HTTP {exc.code}")
+              except Exception as exc:
+                  print(f"OSV lookup failed: {exc}")
+
+          if high_risk and not advisory_checked:
+              print("High-risk Renovate/dependency PR lacks completed target-version advisory evidence; blocking for manual review.")
+              print(f"Title: {title}")
+              if files_unavailable:
+                  print("Changed paths were unavailable from the API; failing closed.")
+              print("Changed paths sample:")
+              for path in paths[:25]:
+                  print(f"- {path}")
+              raise SystemExit(1)
+
+          print(f"Renovate/dependency gate passed: age={age_hours:.1f}h required={required_hours}h high_risk={high_risk} advisory_checked={advisory_checked}.")
+          PY
+
   merge-conflict-check:
+    needs: renovate-supply-chain-gate
     name: Merge Conflict Check
     if: ${{ github.server_url == 'https://github.com' }}
     runs-on: ubuntu-24.04
@@ -54,11 +200,12 @@ jobs:
         run: echo "Merge conflict check only applies to pull_request events."
 
   backend:
+    needs: renovate-supply-chain-gate
     name: Backend
     if: ${{ github.server_url == 'https://github.com' }}
     runs-on: ubuntu-24.04
     container:
-      image: python:3.14.4-slim
+      image: python:3.14.6-slim
 
     steps:
       - name: Check out repository
@@ -87,6 +234,7 @@ jobs:
         run: uv run python -m compileall app tests
 
   frontend:
+    needs: renovate-supply-chain-gate
     name: Frontend
     if: ${{ github.server_url == 'https://github.com' }}
     runs-on: ubuntu-24.04
@@ -115,6 +263,7 @@ jobs:
         run: npm run build
 
   secrets:
+    needs: renovate-supply-chain-gate
     name: Secret Scan
     if: ${{ github.server_url == 'https://github.com' }}
     runs-on: ubuntu-24.04
@@ -136,6 +285,7 @@ jobs:
             dir .
 
   trivy-fs-scan:
+    needs: renovate-supply-chain-gate
     name: Trivy FS Scan
     if: ${{ github.server_url == 'https://github.com' }}
     runs-on: ubuntu-24.04
@@ -162,6 +312,7 @@ jobs:
             .
 
   grype-fs-scan:
+    needs: renovate-supply-chain-gate
     name: Grype FS Scan
     if: ${{ github.server_url == 'https://github.com' }}
     runs-on: ubuntu-24.04
@@ -186,6 +337,7 @@ jobs:
             --only-fixed
 
   trivy-config-scan:
+    needs: renovate-supply-chain-gate
     name: Trivy Config Scan
     if: ${{ github.server_url == 'https://github.com' }}
     runs-on: ubuntu-24.04
@@ -215,12 +367,12 @@ jobs:
             /scan
 
   codeql:
+    needs: renovate-supply-chain-gate
     name: CodeQL
     if: ${{ github.server_url == 'https://github.com' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
-      security-events: write
 
     steps:
       - name: Check out repository
@@ -311,6 +463,23 @@ jobs:
               print("No findings.")
           EOF
 
+  codeql-dismiss-suppressed-alerts:
+    needs:
+      - renovate-supply-chain-gate
+      - codeql
+    name: Dismiss Suppressed CodeQL Alerts
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.server_url == 'https://github.com' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Check out trusted branch
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+
       - name: Dismiss suppressed Code Scanning alerts
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -377,6 +546,7 @@ jobs:
     if: ${{ always() && github.server_url == 'https://github.com' }}
     runs-on: ubuntu-24.04
     needs:
+      - renovate-supply-chain-gate
       - secrets
       - trivy-fs-scan
       - grype-fs-scan

@@ -34,6 +34,16 @@ Initial public release of SLIM (Simple Lab Inventory Manager).
 - Fernet encryption with HKDF key derivation for backup isolation
 - Comprehensive test suite running on in-memory SQLite
 
+## [1.0.2] - 2026-06-13
+
+### Security
+
+- **axios bumped to 1.17.0** — fixes proxy MitM/prototype pollution, NO_PROXY bypass, Proxy-Authorization leak on redirect, ReDoS, and resource-exhaustion advisories
+- **starlette bumped to 1.3.1** — fixes Host header validation / `url.path` poisoning
+- **react-router(-dom) bumped to 7.17.0** — fixes `__manifest` denial of service
+- **python-multipart bumped to 0.0.32** — fixes unbounded part-header denial of service
+- **idna bumped to 3.18** — fixes `idna.encode` bypass of the CVE-2024-3651 fix
+
 ## [1.0.1] - 2026-05-08
 
 ### Changed
