@@ -346,10 +346,11 @@ jobs:
 
   release-tag:
     name: Tag Accepted Public Release
-    if: ${{ github.server_url == 'https://github.com' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.event.pull_request.head.ref, 'public-release/v') }}
-    needs:
-      - release-meta
-      - push-images
+    # Tag is created when the digest-pin PR merges, NOT when the release PR merges.
+    # The pin PR's merge commit is the first commit on main whose compose files
+    # reference this release's published image digests, so tagging it guarantees
+    # `git checkout vX.Y.Z` ships the correct pins.
+    if: ${{ github.server_url == 'https://github.com' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.event.pull_request.head.ref, 'chore/pin-v') && endsWith(github.event.pull_request.head.ref, '-digests') }}
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -358,11 +359,18 @@ jobs:
       - name: Tag accepted public release
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          RELEASE_SHA: ${{ needs.release-meta.outputs.release_sha }}
+          PIN_BRANCH: ${{ github.event.pull_request.head.ref }}
+          RELEASE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
           REPO: ${{ github.repository }}
-          VERSION: ${{ needs.release-meta.outputs.version }}
         run: |
           set -euo pipefail
+          version="${PIN_BRANCH#chore/pin-v}"
+          version="${version%-digests}"
+          if [ -z "$version" ] || [ "$version" = "$PIN_BRANCH" ]; then
+            echo "Unable to extract release version from ${PIN_BRANCH}" >&2
+            exit 1
+          fi
+
           workdir=$(mktemp -d)
           cleanup() {
             rm -rf "$workdir"
@@ -375,5 +383,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO}.git"
           git fetch --no-tags --depth=1 origin "$RELEASE_SHA"
-          git tag -f "v${VERSION}" FETCH_HEAD
-          git push --force origin "refs/tags/v${VERSION}"
+          git tag -f "v${version}" FETCH_HEAD
+          git push --force origin "refs/tags/v${version}"
