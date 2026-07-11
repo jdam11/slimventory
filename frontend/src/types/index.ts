@@ -1159,3 +1159,135 @@ export interface GitRepoSyncResult {
   synced_playbooks: number;
   message: string;
 }
+
+export interface IpamUsedIp {
+  ip: string;
+  host_id: number;
+  host_name: string;
+}
+
+export interface IpamConflict {
+  ip: string;
+  hosts: IpamUsedIp[];
+}
+
+export interface IpamDrift {
+  host_id: number;
+  host_name: string;
+  inventory_ip: string;
+  observed_ip: string;
+}
+
+export interface IpamUnparsedHost {
+  host_id: number;
+  host_name: string;
+  value: string | null;
+}
+
+export interface IpamVlanSummary {
+  vlan_pk: number;
+  vlan_id: number;
+  subnet: string | null;
+  description: string | null;
+  scoped: boolean;
+  host_count: number;
+  total_usable: number;
+  allocated_count: number;
+  free_count: number;
+  utilization_pct: number;
+  conflict_count: number;
+}
+
+export interface IpamVlanDetail extends IpamVlanSummary {
+  used: IpamUsedIp[];
+  conflicts: IpamConflict[];
+  out_of_subnet: IpamUsedIp[];
+  unparsed: IpamUnparsedHost[];
+  drift: IpamDrift[];
+  next_free_ip: string | null;
+}
+
+export interface IpamSummaryResponse {
+  items: IpamVlanSummary[];
+  total: number;
+}
+
+export type HealthSeverity = "info" | "warn";
+
+export interface HealthFinding {
+  category: string;
+  severity: HealthSeverity;
+  message: string;
+  entity: string;
+  entity_id: string | null;
+  link: string | null;
+}
+
+export interface HealthReport {
+  counts: { info: number; warn: number };
+  total: number;
+  findings: HealthFinding[];
+}
+
+export interface AuditLogEntry {
+  id: number;
+  ts: string;
+  username: string | null;
+  ip: string | null;
+  method: string;
+  path: string;
+  entity: string | null;
+  entity_id: string | null;
+  action: string | null;
+  status_code: number;
+}
+
+export interface AuditLogPage {
+  items: AuditLogEntry[];
+  total: number;
+}
+
+export interface AuditLogQuery {
+  entity?: string;
+  username?: string;
+  action?: string;
+  since?: string;
+  skip?: number;
+  limit?: number;
+}
+
+export type NotificationType = "ntfy" | "gotify" | "discord" | "slack" | "generic_webhook";
+
+export interface NotificationChannel {
+  id: number;
+  name: string;
+  type: NotificationType;
+  url: string;
+  events: string[];
+  enabled: boolean;
+  has_secret: boolean;
+  created_at: string;
+}
+
+export interface NotificationChannelCreate {
+  name: string;
+  type: NotificationType;
+  url: string;
+  events: string[];
+  enabled: boolean;
+  secret?: string;
+}
+
+export interface NotificationChannelUpdate {
+  name?: string;
+  type?: NotificationType;
+  url?: string;
+  events?: string[];
+  enabled?: boolean;
+  secret?: string;
+}
+
+export interface NotificationTestResult {
+  ok: boolean;
+  detail: string;
+}

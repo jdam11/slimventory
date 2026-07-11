@@ -15,6 +15,10 @@
 - **Full CRUD API** for hosts, VLANs, roles, apps, datastores, domains, K3s clusters, and more
 - **Role matrix** — spreadsheet-style grid for bulk host/role assignment across the entire inventory
 - **Role-based access control** — admin (read/write) and readonly (read-only) roles
+- **IPAM** — per-VLAN IP allocation, utilization, duplicate-IP conflicts, out-of-subnet hosts, UniFi drift, and next-free-IP, computed from existing inventory
+- **Inventory health report** — data-quality checks for hosts without roles, undeployed apps, empty VLANs, unused roles, stale syncs, and duplicate IPs
+- **Audit log** — append-only record of every create/update/delete made through the API, with a recent-activity card on the dashboard
+- **Outbound notifications** — ntfy, Gotify, Discord, Slack, or generic webhooks on playbook failures, pending Proxmox hosts, and backup outcomes
 - **Proxmox integration** — auto-sync VMs and containers from Proxmox VE clusters
 - **Automation workspace** — Git repos, job templates, automation runs, and vault credentials in one section
 - **Monitoring workspace** — Prometheus/Loki overview, alerts, capacity, host health, service activity, and log visibility for homelab services
@@ -95,9 +99,10 @@ docker compose up --build -d
 The web UI is organized into nested navigation groups:
 
 - **Overview** — dashboard, admin-only AI Ops, and monitoring views
-- **Inventory** — inventory overview, hosts, resources, storage, Proxmox, lookup tables, Ansible defaults, inventory explorer, and role matrix
+- **Inventory** — inventory overview, hosts, resources, storage, Proxmox, lookup tables, Ansible defaults, inventory explorer, role matrix, and inventory health
+- **Networking** — VLANs, domains, UniFi, and IPAM
 - **Automation** — Git repos, job templates, automation runs, and vault credentials
-- **Admin** — users and backups
+- **Admin** — users, backups, audit log, notifications, and integration settings
 
 The landing page at `/` is the operational dashboard. The older inventory-heavy dashboard experience is preserved at **Inventory Overview**. The AI Ops workspace is available to admins at `/assistant` and from the global floating assistant panel.
 

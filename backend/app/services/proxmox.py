@@ -36,6 +36,7 @@ from app.models.inventory import (
     Vlan,
 )
 from app.security import decrypt_secret
+from app.services import notifications
 
 _scheduler_refresh_callback: Optional[Callable[[], None]] = None
 _sync_lock = threading.Lock()
@@ -738,6 +739,13 @@ def _upsert_node_pending(
             run.id,
             node_name,
             credential.id,
+        )
+        notifications.dispatch(
+            db,
+            "proxmox_pending_host",
+            "New Proxmox node pending review",
+            f"Node '{node_name}' was discovered by a Proxmox sync and is awaiting promotion.",
+            {"node": node_name, "credential_id": credential.id},
         )
     else:
         # Refresh raw data from Proxmox

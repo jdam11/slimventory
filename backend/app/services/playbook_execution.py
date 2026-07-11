@@ -13,6 +13,7 @@ from app.models.auth import AppUser, UserRole
 from app.models.git import GitRepo, PlaybookHostSource, PlaybookRun, PlaybookRunStatus
 from app.models.job_templates import InventoryFilterType, VaultCredential
 from app.services import ansible_runner as runner_svc
+from app.services import notifications
 from app.services.ansible_runner_settings import get_or_create_ansible_runner_settings
 from app.services.field_encryption import decrypt_field_value
 from app.services.git_service import get_repo_path, sync_repo
@@ -204,6 +205,14 @@ async def execute_run(run_id: int, repo_id: int, playbook_path: str) -> None:
                     run.exit_code = exit_code
                     run.finished_at = datetime.now(timezone.utc)
                     db.commit()
+                if run and final_status == PlaybookRunStatus.failed:
+                    notifications.dispatch(
+                        db,
+                        "playbook_run_failed",
+                        f"Playbook run #{run_id} failed",
+                        f"Playbook #{run.playbook_id} exited with code {exit_code}.",
+                        {"run_id": run_id, "playbook_id": run.playbook_id, "exit_code": exit_code},
+                    )
             log.info("run_id=%d finished status=%s exit_code=%s", run_id, final_status, exit_code)
             return
 

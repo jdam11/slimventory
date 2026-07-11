@@ -9,6 +9,8 @@ const HomeDashboardPage = lazy(() => import("./pages/HomeDashboardPage"));
 const InventoryExplorerPage = lazy(() => import("./pages/InventoryExplorerPage"));
 const InventoryHierarchyPage = lazy(() => import("./pages/InventoryHierarchyPage"));
 const InventoryOverviewPage = lazy(() => import("./pages/InventoryOverviewPage"));
+const InventoryHealthPage = lazy(() => import("./pages/InventoryHealthPage"));
+const IpamPage = lazy(() => import("./pages/IpamPage"));
 const MonitoringPage = lazy(() => import("./pages/MonitoringPage"));
 const AssistantPage = lazy(() => import("./pages/AssistantPage"));
 const EnvironmentsPage = lazy(() => import("./pages/tables/EnvironmentsPage"));
@@ -40,6 +42,8 @@ const MonitoringSettingsPage = lazy(() => import("./pages/admin/MonitoringSettin
 const GlobalDefaultRolesPage = lazy(() => import("./pages/admin/GlobalDefaultRolesPage"));
 const AiSettingsPage = lazy(() => import("./pages/admin/AiSettingsPage"));
 const InventoryApiKeysPage = lazy(() => import("./pages/admin/InventoryApiKeysPage"));
+const AuditLogPage = lazy(() => import("./pages/admin/AuditLogPage"));
+const NotificationChannelsPage = lazy(() => import("./pages/admin/NotificationChannelsPage"));
 const AnsibleRunnerSettingsPage = lazy(() => import("./pages/admin/AnsibleRunnerSettingsPage"));
 
 const qc = new QueryClient({
@@ -78,6 +82,8 @@ export default function App() {
             <Route path="inventory/overview" element={<InventoryOverviewPage />} />
             <Route path="inventory/explorer" element={<InventoryExplorerPage />} />
             <Route path="inventory/hierarchy" element={<InventoryHierarchyPage />} />
+            <Route path="inventory/health" element={<InventoryHealthPage />} />
+            <Route path="networking/ipam" element={<IpamPage />} />
             <Route path="inventory/environments" element={<EnvironmentsPage />} />
             <Route path="inventory/host-types" element={<HostTypesPage />} />
             <Route path="inventory/host-statuses" element={<HostStatusesPage />} />
@@ -112,6 +118,22 @@ export default function App() {
             <Route path="automation/playbook-runs" element={<PlaybookRunsPage />} />
             <Route path="automation/vault-credentials" element={<VaultCredentialsPage />} />
             <Route path="admin/backups" element={<BackupPage />} />
+            <Route
+              path="admin/audit-log"
+              element={
+                <PrivateRoute adminOnly>
+                  <AuditLogPage />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="admin/notifications"
+              element={
+                <PrivateRoute adminOnly>
+                  <NotificationChannelsPage />
+                </PrivateRoute>
+              }
+            />
             <Route
               path="admin/inventory-api-keys"
               element={

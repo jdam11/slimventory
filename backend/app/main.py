@@ -21,7 +21,8 @@ if settings.LOG_LEVEL != "DEBUG":
     for _noisy in ("uvicorn", "uvicorn.access", "apscheduler", "sqlalchemy"):
         logging.getLogger(_noisy).setLevel(logging.WARNING)
 
-from .audit import _client_ip, log_rate_limited
+from .audit import MUTATING_METHODS, _client_ip, log_rate_limited, record_audit
+from .database import get_db
 from .routers import (
     admin,
     ai,
@@ -29,6 +30,7 @@ from .routers import (
     ansible_playbooks,
     app_fields,
     apps,
+    audit,
     auth,
     backup,
     datastores,
@@ -51,10 +53,13 @@ from .routers import (
     host_types,
     hosts,
     inventory,
+    inventory_health,
+    ipam,
     job_templates,
     k3s_cluster_apps,
     k3s_clusters,
     monitoring,
+    notifications,
     playbook_runs,
     proxmox,
     role_fields,
@@ -81,7 +86,7 @@ _enable_docs = settings.LOG_LEVEL == "DEBUG" or settings.TESTING
 
 app = FastAPI(
     title="Homelab Inventory",
-    version="1.0.0",
+    version="1.1.0",
     docs_url="/api/docs" if _enable_docs else None,
     openapi_url="/api/openapi.json" if _enable_docs else None,
     redoc_url="/api/redoc" if _enable_docs else None,
@@ -125,6 +130,35 @@ async def access_log(request: Request, call_next):
     return response
 
 
+def _audit_db():
+    """Return (session, owned). In tests the get_db override is reused so the
+    audit row lands in the same in-memory database the request used."""
+    override = app.dependency_overrides.get(get_db)
+    if override is not None:
+        return next(override()), False
+    return SessionLocal(), True
+
+
+@app.middleware("http")
+async def audit_capture(request: Request, call_next):
+    response = await call_next(request)
+    if (
+        request.method in MUTATING_METHODS
+        and 200 <= response.status_code < 300
+        and not request.url.path.startswith("/api/auth")
+    ):
+        try:
+            db, owned = _audit_db()
+            try:
+                record_audit(db, request, response.status_code)
+            finally:
+                if owned:
+                    db.close()
+        except Exception:  # noqa: BLE001 — auditing must never break the request
+            access_logger.exception("failed to record audit entry")
+    return response
+
+
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
     response = await call_next(request)
@@ -158,6 +192,7 @@ API = "/api"
 
 app.include_router(admin, prefix=API)
 app.include_router(ai, prefix=API)
+app.include_router(audit, prefix=API)
 app.include_router(backup, prefix=API)
 app.include_router(auth, prefix=API)
 app.include_router(environments, prefix=API)
@@ -188,9 +223,12 @@ app.include_router(host_status_fields, prefix=API)
 app.include_router(ansible_defaults, prefix=API)
 app.include_router(host_ansible_vars, prefix=API)
 app.include_router(inventory, prefix=API)
+app.include_router(inventory_health, prefix=API)
+app.include_router(ipam, prefix=API)
 app.include_router(proxmox, prefix=API)
 app.include_router(unifi, prefix=API)
 app.include_router(monitoring, prefix=API)
+app.include_router(notifications, prefix=API)
 app.include_router(git_credentials, prefix=API)
 app.include_router(git_repos, prefix=API)
 app.include_router(ansible_playbooks, prefix=API)

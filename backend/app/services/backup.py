@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..models.backup import AppBackupConfig, AppBackupHistory
+from . import notifications
 
 logger = logging.getLogger(__name__)
 
@@ -171,6 +172,13 @@ def run_backup(db: Session, trigger_source: str, created_by: Optional[str] = Non
         _enforce_retention(db)
 
         logger.info("Backup completed: %s (%d bytes)", filename, size_bytes)
+        notifications.dispatch(
+            db,
+            "backup_completed",
+            "Backup completed",
+            f"Database backup '{filename}' completed ({size_bytes} bytes).",
+            {"filename": filename, "size_bytes": size_bytes},
+        )
         return history
 
     except Exception as exc:
@@ -183,6 +191,13 @@ def run_backup(db: Session, trigger_source: str, created_by: Optional[str] = Non
         if os.path.exists(filepath):
             os.remove(filepath)
         logger.error("Backup failed: %s", exc)
+        notifications.dispatch(
+            db,
+            "backup_failed",
+            "Backup failed",
+            f"Database backup '{filename}' failed: {str(exc)[:300]}",
+            {"filename": filename},
+        )
         raise
     finally:
         os.unlink(defaults_file)

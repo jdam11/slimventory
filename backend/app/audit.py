@@ -13,10 +13,16 @@ from __future__ import annotations
 import logging
 
 from fastapi import Request
+from sqlalchemy.orm import Session
 
 from .config import settings
+from .models.audit_log import AuditLog
+from .security import decode_token
 
 logger = logging.getLogger("security")
+
+MUTATING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+_ACTIONS = {"POST": "create", "PUT": "update", "PATCH": "update", "DELETE": "delete"}
 
 
 def _client_ip(request: Request) -> str:
@@ -35,6 +41,59 @@ def _client_ip(request: Request) -> str:
     return peer
 
 
+
+def _resolve_username(request: Request) -> str | None:
+    """Best-effort decode of the acting user from the request's JWT."""
+    token = None
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        token = auth[len("Bearer ") :]
+    if not token:
+        token = request.cookies.get("access_token")
+    if not token:
+        return None
+    try:
+        payload = decode_token(token)
+    except Exception:  # noqa: BLE001 — never let auditing raise into the request
+        return None
+    if payload.get("type") != "access":
+        return None
+    return payload.get("sub")
+
+
+def _parse_entity(path: str) -> tuple[str | None, str | None]:
+    """Derive (entity, entity_id) from an API path like /api/hosts/12."""
+    p = path
+    if p.startswith("/api/"):
+        p = p[len("/api/") :]
+    elif p.startswith("/api"):
+        p = p[len("/api") :]
+    p = p.strip("/")
+    if not p:
+        return None, None
+    parts = p.split("/")
+    entity = parts[0]
+    entity_id = parts[1] if len(parts) > 1 and parts[1].isdigit() else None
+    return entity, entity_id
+
+
+def record_audit(db: Session, request: Request, status_code: int) -> None:
+    """Persist one audit_log row for a mutating request."""
+    method = request.method.upper()
+    entity, entity_id = _parse_entity(request.url.path)
+    db.add(
+        AuditLog(
+            username=_resolve_username(request),
+            ip=_client_ip(request),
+            method=method,
+            path=request.url.path,
+            entity=entity,
+            entity_id=entity_id,
+            action=_ACTIONS.get(method),
+            status_code=status_code,
+        )
+    )
+    db.commit()
 
 
 def log_login_success(request: Request, username: str) -> None:
