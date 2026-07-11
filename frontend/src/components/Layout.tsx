@@ -6,7 +6,9 @@ import {
   CodeOutlined,
   DatabaseOutlined,
   DashboardOutlined,
+  BellOutlined,
   DeploymentUnitOutlined,
+  FileSearchOutlined,
   GlobalOutlined,
   KeyOutlined,
   LogoutOutlined,
@@ -75,6 +77,7 @@ const NAV: NavItem[] = [
       { key: "/inventory/overview", label: "Inventory Overview", icon: <UnorderedListOutlined /> },
       { key: "/inventory/explorer", label: "Inventory Explorer", icon: <RadarChartOutlined /> },
       { key: "/inventory/hierarchy", label: "Inventory Hierarchy", icon: <ClusterOutlined /> },
+      { key: "/inventory/health", label: "Inventory Health", icon: <SafetyCertificateOutlined /> },
       {
         key: "inventory-hosts",
         label: "Hosts",
@@ -117,6 +120,7 @@ const NAV: NavItem[] = [
     icon: <WifiOutlined />,
     children: [
       { key: "/networking/vlans", label: "VLANs", icon: <WifiOutlined /> },
+      { key: "/networking/ipam", label: "IPAM", icon: <PartitionOutlined /> },
       { key: "/networking/domains", label: "Domains", icon: <GlobalOutlined /> },
       { key: "/networking/unifi", label: "UniFi", icon: <WifiOutlined /> },
     ],
@@ -141,6 +145,8 @@ const NAV: NavItem[] = [
       children: [
         { key: "/inventory/users", label: "Users", icon: <UserOutlined /> },
         { key: "/admin/backups", label: "Backups", icon: <SaveOutlined /> },
+        { key: "/admin/audit-log", label: "Audit Log", icon: <FileSearchOutlined /> },
+        { key: "/admin/notifications", label: "Notifications", icon: <BellOutlined /> },
         { key: "/admin/inventory-api-keys", label: "Inventory API Keys", icon: <KeyOutlined /> },
         { key: "/admin/ansible-runner-settings", label: "Ansible Runner Settings", icon: <SafetyCertificateOutlined /> },
         { key: "/admin/ai-settings", label: "AI Settings", icon: <RobotOutlined /> },

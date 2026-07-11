@@ -25,9 +25,11 @@ from app.database import get_db
 from app.main import app as fastapi_app
 from app.models import ai as _ai_models  # noqa: F401
 from app.models.base import Base
+from app.models import audit_log as _audit_log_models  # noqa: F401
 from app.models import auth as _auth_models  # noqa: F401
 from app.models import git as _git_models  # noqa: F401
 from app.models import monitoring as _monitoring_models  # noqa: F401
+from app.models import notifications as _notification_models  # noqa: F401
 from app.models import inventory as _inventory_models  # noqa: F401
 from app.models import job_templates as _job_template_models  # noqa: F401
 from app.models.auth import AppUser, UserRole

@@ -43,7 +43,7 @@ import {
   type ProxmoxPendingHostUpdate,
   type ProxmoxScheduleInput,
 } from "../api/proxmox";
-import yaml from "js-yaml";
+import * as yaml from "js-yaml";
 import { getLogLevel, setLogLevel } from "../api/admin";
 import { createRecord, listRecords } from "../api/crud";
 import { useAuth } from "../store/AuthContext";
