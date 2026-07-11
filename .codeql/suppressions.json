@@ -20,13 +20,13 @@
   {
     "rule": "py/log-injection",
     "file": "backend/app/audit.py",
-    "line": 52,
+    "line": 111,
     "reason": "Audit log of authenticated event metadata \u2014 values are internally generated."
   },
   {
     "rule": "py/log-injection",
     "file": "backend/app/audit.py",
-    "line": 109,
+    "line": 168,
     "reason": "Audit log of authenticated event metadata \u2014 values are internally generated."
   },
   {
@@ -50,7 +50,7 @@
   {
     "rule": "py/log-injection",
     "file": "backend/app/services/proxmox.py",
-    "line": 771,
+    "line": 779,
     "reason": "trigger_source is a system-controlled enum value, not user input."
   },
   {
@@ -110,13 +110,13 @@
   {
     "rule": "py/empty-except",
     "file": "backend/app/services/proxmox.py",
-    "line": 184,
+    "line": 185,
     "reason": "ValueError on VLAN tag parse \u2014 invalid tokens are intentionally skipped."
   },
   {
     "rule": "py/empty-except",
     "file": "backend/app/services/proxmox.py",
-    "line": 263,
+    "line": 264,
     "reason": "ValueError on VLAN tag parse \u2014 invalid tokens are intentionally skipped."
   },
   {
@@ -147,6 +147,54 @@
     "rule": "py/unused-global-variable",
     "file": "backend/alembic/versions/001_first_official_release_baseline.py",
     "line": 17,
+    "reason": "Alembic reads depends_on as a module-level convention."
+  },
+  {
+    "rule": "py/unused-global-variable",
+    "file": "backend/alembic/versions/002_audit_log.py",
+    "line": 15,
+    "reason": "Alembic reads revision as a module-level convention, not via normal Python call paths."
+  },
+  {
+    "rule": "py/unused-global-variable",
+    "file": "backend/alembic/versions/002_audit_log.py",
+    "line": 16,
+    "reason": "Alembic reads down_revision as a module-level convention."
+  },
+  {
+    "rule": "py/unused-global-variable",
+    "file": "backend/alembic/versions/002_audit_log.py",
+    "line": 17,
+    "reason": "Alembic reads branch_labels as a module-level convention."
+  },
+  {
+    "rule": "py/unused-global-variable",
+    "file": "backend/alembic/versions/002_audit_log.py",
+    "line": 18,
+    "reason": "Alembic reads depends_on as a module-level convention."
+  },
+  {
+    "rule": "py/unused-global-variable",
+    "file": "backend/alembic/versions/003_notifications.py",
+    "line": 15,
+    "reason": "Alembic reads revision as a module-level convention, not via normal Python call paths."
+  },
+  {
+    "rule": "py/unused-global-variable",
+    "file": "backend/alembic/versions/003_notifications.py",
+    "line": 16,
+    "reason": "Alembic reads down_revision as a module-level convention."
+  },
+  {
+    "rule": "py/unused-global-variable",
+    "file": "backend/alembic/versions/003_notifications.py",
+    "line": 17,
+    "reason": "Alembic reads branch_labels as a module-level convention."
+  },
+  {
+    "rule": "py/unused-global-variable",
+    "file": "backend/alembic/versions/003_notifications.py",
+    "line": 18,
     "reason": "Alembic reads depends_on as a module-level convention."
   },
   {
@@ -189,6 +237,18 @@
     "rule": "py/unused-import",
     "file": "backend/tests/conftest.py",
     "line": 32,
+    "reason": "Side-effect import that registers SQLAlchemy models with Base for test schema creation."
+  },
+  {
+    "rule": "py/unused-import",
+    "file": "backend/tests/conftest.py",
+    "line": 33,
+    "reason": "Side-effect import that registers SQLAlchemy models with Base for test schema creation."
+  },
+  {
+    "rule": "py/unused-import",
+    "file": "backend/tests/conftest.py",
+    "line": 34,
     "reason": "Side-effect import that registers SQLAlchemy models with Base for test schema creation."
   }
 ]

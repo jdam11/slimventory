@@ -272,6 +272,24 @@ CREATE TABLE `apps` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `audit_log` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `ts` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `username` varchar(150) DEFAULT NULL,
+  `ip` varchar(45) DEFAULT NULL,
+  `method` varchar(10) NOT NULL,
+  `path` varchar(512) NOT NULL,
+  `entity` varchar(100) DEFAULT NULL,
+  `entity_id` varchar(100) DEFAULT NULL,
+  `action` varchar(20) DEFAULT NULL,
+  `status_code` int NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `ix_audit_log_ts` (`ts`),
+  KEY `ix_audit_log_entity` (`entity`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `datastores` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
   `name` varchar(64) NOT NULL,
@@ -952,6 +970,21 @@ CREATE TABLE `vault_credentials` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `notification_channels` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(100) NOT NULL,
+  `type` varchar(20) NOT NULL,
+  `url` varchar(512) NOT NULL,
+  `secret_encrypted` varchar(512) DEFAULT NULL,
+  `events` json NOT NULL,
+  `enabled` tinyint(1) NOT NULL DEFAULT '1',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_notification_channels_name` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `vlans` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
   `vlan_id` int unsigned NOT NULL,
@@ -983,4 +1016,4 @@ CREATE TABLE `vlans` (
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
 
-INSERT INTO alembic_version (version_num) VALUES ('001');
+INSERT INTO alembic_version (version_num) VALUES ('003');

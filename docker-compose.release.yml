@@ -1,6 +1,6 @@
 services:
   db:
-    image: mysql:9.7.0@sha256:c11782aa2a96624c1efc121768641d96954faa136d6aa82751b032d8c426ffbc
+    image: mysql:9.7.1@sha256:ae269281abffe401d65f04cb54d45a069a495b8174b9c0a815e502fed7fa0370
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
@@ -20,7 +20,7 @@ services:
       start_period: 30s
 
   backend:
-    image: jdam11/slim-backend:1.0.2@sha256:51b0fa6bcf453f3077503bf7c9d8568c3558cdc0dbc31c471cc9c2d870e271be
+    image: jdam11/slim-backend:1.1.0@sha256:7feecfea583316c7c5164e13943aab414d0d198985c3a63452fca68ed9be8cf6
     restart: unless-stopped
     env_file:
       - path: .env
@@ -71,7 +71,7 @@ services:
       start_period: 15s
 
   ansible-runner:
-    image: jdam11/slim-ansible-runner:1.0.2@sha256:2ba8273e513c549632874f0540d254ed5a475505dd747085a52a888a35af7445
+    image: jdam11/slim-ansible-runner:1.1.0@sha256:eb07d5891f0f8c3fa669ac1338828b212e5ff130e792a2a59911a6defc8343c1
     restart: unless-stopped
     environment:
       ANSIBLE_HOST_KEY_CHECKING: "True"
@@ -88,7 +88,7 @@ services:
       start_period: 20s
 
   frontend:
-    image: jdam11/slim-frontend:1.0.2@sha256:b818f310951a53b0e8fc402bb23ee0ab53f007d9bce6e2f645db4782bb965e24
+    image: jdam11/slim-frontend:1.1.0@sha256:4f676adfe32b152c05a1372a6ae59cc978a80403efd1540620b65bbb52400d15
     restart: unless-stopped
     ports:
       - "3000:8080"

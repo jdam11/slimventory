@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-07-11
+
+### Added
+
+- **IPAM** — read-only IP Address Management under Networking. Per-VLAN summary with utilization bars, plus per-VLAN detail showing used addresses, duplicate-IP conflicts, out-of-subnet hosts, UniFi observed-vs-inventory drift, and the next free IP. Computed from existing VLAN subnets, host IPs, and UniFi observations — no new tables. New routes `GET /api/ipam` and `GET /api/ipam/{vlan_pk}`.
+- **Inventory health report** — read-only data-quality dashboard under Inventory and a summary card on the home dashboard. Flags hosts without roles, stale Proxmox/UniFi syncs, duplicate IPs, apps deployed nowhere, VLANs without hosts, and unused roles. New route `GET /api/inventory-health`.
+- **Audit log** — append-only trail of every mutating API request (create/update/delete), captured by middleware and viewable on an admin page plus a "Recent activity" dashboard card. New `audit_log` table and admin-only route `GET /api/audit` with `entity`/`username`/`action`/`since` filters.
+- **Outbound notifications** — admin-managed notification channels (ntfy, Gotify, Discord, Slack, generic webhook) that fire on `playbook_run_failed`, `proxmox_pending_host`, `backup_failed`, and `backup_completed` events. New `notification_channels` table, admin CRUD under `/api/notification-channels` with a per-channel test button. Channel secrets are encrypted at rest and never returned by the API.
+
+### Security
+
+- **PyJWT bumped to 2.13.0** — fixes public-key JWK accepted as HMAC secret (forged HS256 tokens), algorithm allow-list bypass with `PyJWK`/`PyJWKClient` keys, unauthenticated DoS via unbounded Base64URL decoding in `b64=false` detached JWS, missing URL-scheme allowlist in `PyJWKClient` (SSRF/token forgery), and unbounded JWKS requests via attacker-controlled `kid` values
+- **cryptography bumped to 49.0.0** — ships wheels with patched OpenSSL
+- **pydantic-settings bumped to 2.14.2** — fixes symlink-following outside `secrets_dir` enabling local file read
+- **form-data bumped to 4.0.6** — fixes CRLF injection via unescaped multipart field names and filenames
+
+### Dependencies
+
+- Frontend major updates: js-yaml 5.x, TypeScript 7.x
+- Docker base images and GitHub/Gitea action versions updated
+
 ## [0.1.0] - 2026-04-04
 
 Initial public release of SLIM (Simple Lab Inventory Manager).

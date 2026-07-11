@@ -28,6 +28,8 @@ import { listRecords } from "../api/crud";
 import { listGitRepos, listPlaybookRuns } from "../api/git";
 import { listJobTemplates, listVaultCredentials } from "../api/job_templates";
 import { getMonitoringAlerts, getMonitoringOverview } from "../api/monitoring";
+import { getInventoryHealth } from "../api/inventory_health";
+import { getAuditLog } from "../api/audit";
 import { listProxmoxPendingHosts, listProxmoxSyncRuns } from "../api/proxmox";
 import { useAuth } from "../store/AuthContext";
 import SetupWizardModal, { isWizardComplete } from "../components/SetupWizardModal";
@@ -53,6 +55,13 @@ function statusColor(status: string): string {
   if (status === "running" || status === "pending") return "blue";
   if (status === "failed") return "red";
   if (status === "cancelled") return "orange";
+  return "default";
+}
+
+function auditActionColor(action: string): string {
+  if (action === "create") return "green";
+  if (action === "update") return "blue";
+  if (action === "delete") return "red";
   return "default";
 }
 
@@ -130,6 +139,15 @@ export default function HomeDashboardPage() {
     queryKey: ["/monitoring/alerts", "dashboard"],
     queryFn: () => getMonitoringAlerts(),
     refetchInterval: 30_000,
+  });
+  const { data: healthData } = useQuery({
+    queryKey: ["/inventory-health", "dashboard"],
+    queryFn: getInventoryHealth,
+  });
+  const { data: auditData } = useQuery({
+    queryKey: ["/audit", "dashboard"],
+    queryFn: () => getAuditLog({ limit: 8 }),
+    enabled: isAdmin,
   });
 
   const inventoryRows = inventoryData?.items ?? [];
@@ -273,6 +291,15 @@ export default function HomeDashboardPage() {
               <Statistic title="Logs / Hour" value={totalLogLines.toLocaleString()} prefix={<LineChartOutlined />} />
             </Card>
           </Col>
+          <Col xs={24} sm={12} lg={8} xl={4}>
+            <Card hoverable onClick={() => navigate("/inventory/health")}>
+              <Statistic
+                title="Health Warnings"
+                value={healthData?.counts.warn ?? 0}
+                prefix={<SafetyOutlined />}
+              />
+            </Card>
+          </Col>
         </Row>
 
         <Row gutter={[16, 16]}>
@@ -381,6 +408,34 @@ export default function HomeDashboardPage() {
             </Card>
           </Col>
         </Row>
+
+        {isAdmin && (
+          <Row gutter={[16, 16]}>
+            <Col xs={24}>
+              <Card
+                title="Recent Activity"
+                extra={<Button type="link" onClick={() => navigate("/admin/audit-log")}>Open Audit Log</Button>}
+              >
+                <List
+                  dataSource={auditData?.items ?? []}
+                  locale={{ emptyText: "No activity recorded yet." }}
+                  renderItem={(entry) => (
+                    <List.Item>
+                      <Space size={8} style={{ width: "100%", flexWrap: "wrap" }}>
+                        {entry.action && <Tag color={auditActionColor(entry.action)}>{entry.action}</Tag>
+                        }
+                        <Text strong>{entry.entity ?? entry.path}</Text>
+                        {entry.entity_id && <Text type="secondary">#{entry.entity_id}</Text>}
+                        <Text type="secondary">by {entry.username ?? "—"}</Text>
+                        <Text type="secondary">· {formatDate(entry.ts)}</Text>
+                      </Space>
+                    </List.Item>
+                  )}
+                />
+              </Card>
+            </Col>
+          </Row>
+        )}
       </Space>
     </div>
     {isAdmin && (
